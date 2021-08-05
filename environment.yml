@@ -1,0 +1,17 @@
+name: surprisal
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - numpy
+  - pytorch==1.2.0
+  - matplotlib
+  - pip
+  - ipykernel
+  - pandas
+  - tensorboard
+  - nltk
+  - pip:
+    - tensorboardX>=1.6
+    - python-docx
+      
