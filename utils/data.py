@@ -3,6 +3,8 @@
 import docx
 import torch
 import numpy as np
+import nltk
+nltk.download('punkt')
 from nltk import sent_tokenize, word_tokenize
 
 

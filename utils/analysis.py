@@ -7,7 +7,7 @@ import model
 def sent_perplexity(sent, model, vocab:Dictionary, out_prev, hidden_init):
     """
     Params:
-        sent: a tensor of words index; shape = <batch_size=1, sent_len>
+        sent: a tensor of words index; shape = <sent_len, batch_size=1>
         out_prev: output from the network at the last timestep of the previous sentence
     Return:
         ppl: the perplexity of the entire sentence (w_0, ... w_n-1)
