@@ -1,9 +1,11 @@
+from nltk.corpus.reader.chasen import test
 import numpy as np
 import torch
 import torch.nn as nn
 from utils.data import Dictionary
 import model
 
+# TODO: sent starts with EOS instead of ends with it
 def sent_perplexity(sent, model, vocab:Dictionary, out_prev, hidden_init):
     """
     Params:

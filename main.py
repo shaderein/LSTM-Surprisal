@@ -29,15 +29,13 @@ ppl_sent_highlight = []
 
 with torch.no_grad():
     for i, sent in enumerate(all_ids[0:100]):
-        if i==0:
+        if i == 0:
             hidden = model.init_hidden(bsz=1)
             out, hidden = model(sent, hidden)
             continue
-        out_prev = out[-1, 0] #TODO: optimize memory
+        out_prev = out[-1, 0]  #TODO: optimize memory
         ppl, out, hidden = sent_perplexity(sent, model, vocab, out_prev, hidden)
         if is_highlight[i]:
             ppl_sent_highlight.append(ppl)
 
     print(f"ppl per sent {np.mean(ppl_sent_highlight)}")
-            
-        
