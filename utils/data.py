@@ -47,7 +47,9 @@ def word2idx(sents, vocab):
     all_ids = []
     processed_text = []
     for s in sents:
-        words = word_tokenize(s.lower()) + ['<eos>'] #Note: should add eos to reduce PPL
+        # Note: should add eos to reduce PPL
+        # Note: all sentences start with <eos>
+        words = ['<eos>'] + word_tokenize(s.lower()) 
         ids = torch.LongTensor(len(words))
         processed_words = words
         for i, word in enumerate(words):

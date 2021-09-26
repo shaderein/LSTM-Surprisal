@@ -5,26 +5,22 @@ import torch.nn as nn
 from utils.data import Dictionary
 import model
 
-# TODO: sent starts with EOS instead of ends with it
-def sent_perplexity(sent, model, vocab:Dictionary, out_prev, hidden_init):
+def sent_perplexity(sent, model, vocab:Dictionary, hidden_init):
     """
     Params:
-        sent: a tensor of words index; shape = <sent_len, batch_size=1>
-        out_prev: output from the network at the last timestep of the previous sentence
+        sent: a tensor of words index; shape = <sent_len=n, batch_size=1>
+              The first token (w_0) is always <eos>
     Return:
-        ppl: the perplexity of the entire sentence (w_0, ... w_n-1)
+        ppl: the perplexity of the entire sentence (w_1, ... w_n-1)
     """
     vocab_size = len(vocab.idx2word)
     
-    target = sent.squeeze(dim=1) # convert to 1D array
+    target = sent.squeeze(dim=1)[1:] # convert to 1D array
     
     out, hidden = model(sent, hidden_init)
     out = out.squeeze(dim=1)
 
-    pred = torch.zeros(len(sent), vocab_size)
-    pred[0] = out_prev # include the last output from the previous sentence
-                        # which predicts the first word of the current sent 
-    pred[1:] = out[:-1]
+    pred = out[:-1]
 
     ce = nn.functional.cross_entropy(pred, target)
     ppl = torch.exp(ce)
