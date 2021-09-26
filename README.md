@@ -11,4 +11,4 @@ To run the notebook and the code, build a conda environment using `environment.y
 
 `model.py` contains language model code originally provided [here](https://github.com/vansky/neural-complexity/blob/master/model.py)
 
-`main.py` is used for debugging only. Check `surprisal.ipynb` instead to see analysis and results
+`scripts/main.py` is used for debugging only. Check `surprisal.ipynb` instead to see analysis and results
