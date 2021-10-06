@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import torch
+from tqdm import tqdm
 import ast
 import os
 
@@ -10,9 +11,10 @@ from utils.data import preprocess, word2idx, Dictionary
 from utils.analysis import sent_perplexity
 
 # Hyperparams for now
+RUN_NUM = 50    # total number of runs
 TARGET_NUM = 5  # number of targets to select
 TARGET_IDX_LOW = 6  # start selecting target from the n-th sentence
-SIM_RANGE = range(3)  # similarity range (currently 0(low)-2(high))
+SIM_RANGE = range(6)  # similarity range
 
 # data path
 data_dir = './data'
@@ -24,11 +26,11 @@ article_path = os.path.join(
 
 story_pool_path = os.path.join(
     data_dir, "pools",
-    'interruption_sim_RainyDayStory_pool_brown_allCatges_seed_1.xlsx')
+    'diverseSim_interruptions_RainyDayStory_pool_brown_allCatges_seed_1.xlsx')
 
 article_pool_path = os.path.join(
     data_dir, 'pools',
-    'interruption_sim_APAMarriageArticle_pool_brown_allCatges_seed_1.xlsx')
+    'diverseSim_interruptions_APAMarriageArticle_pool_brown_allCatges_seed_1.xlsx')
 
 
 def prepare_input(target_type, seed_num):
@@ -42,6 +44,10 @@ def prepare_input(target_type, seed_num):
     # randomly select target sents from the raw text
     np.random.seed(seed_num)
     target_inds = np.random.randint(TARGET_IDX_LOW, len(sents), TARGET_NUM)
+
+    # interruption data as a dictionary
+        # {(target_idx, sim_level) : (intrp_sent, score)}
+        # where sim_level ranges from 1-10
     intrp_data = {}
 
     for idx in target_inds:
@@ -49,34 +55,18 @@ def prepare_input(target_type, seed_num):
         target_sent = ast.literal_eval(target_cell)[0]
         assert (sents[idx] == target_sent)
 
-        low_sim_sent = pool['intrp_sentence_low_sim'][idx]
-        # QS: 0-based or 1-based?
-        low_sim_sent = ast.literal_eval(low_sim_sent)[seed_num - 1]
-        low_sim_score = pool['sim_score_low'][idx]
-        low_sim_score = ast.literal_eval(low_sim_score)[seed_num - 1]
+        for sim_level in SIM_RANGE:
+            sim_sent = pool[f'sents_sim_intrp_{target_type}_bin{sim_level+1}_all'][idx]
+            sim_sent = ast.literal_eval(sim_sent)[seed_num - 1]
+            sim_score = pool[f'sim_intrp_{target_type}_bin{sim_level+1}_all'][idx]
+            sim_score = ast.literal_eval(sim_score)[seed_num - 1]
 
-        mid_sim_sent = pool['intrp_sentence_mid_sim'][idx]
-        mid_sim_sent = ast.literal_eval(mid_sim_sent)[seed_num - 1]
-        mid_sim_score = pool['sim_score_mid'][idx]
-        mid_sim_score = ast.literal_eval(mid_sim_score)[seed_num - 1]
-
-        high_sim_sent = pool['intrp_sentence_high_sim'][idx]
-        high_sim_sent = ast.literal_eval(high_sim_sent)[seed_num - 1]
-        high_sim_score = pool['sim_score_high'][idx]
-        high_sim_score = ast.literal_eval(high_sim_score)[seed_num - 1]
-
-        # interruption data as a dictionary
-        # {(target_idx, sim_level) : (intrp_sent, score)}
-        # where sim_level ranges from 1-10
-
-        intrp_data[(idx, 0)] = (low_sim_sent, low_sim_score)
-        intrp_data[(idx, 1)] = (mid_sim_sent, mid_sim_score)
-        intrp_data[(idx, 2)] = (high_sim_sent, high_sim_score)
+            intrp_data[(idx, sim_level)] = (sim_sent, sim_score)
 
     return target_inds, intrp_data
 
 
-def run(target_type, model, vocab, seed_num):
+def run(target_type, model, model_size, vocab, seed_num):
 
     if target_type == 'story':
         sents_text, _ = preprocess(story_path)
@@ -90,6 +80,7 @@ def run(target_type, model, vocab, seed_num):
 
     # logging
     target_sent_all = []
+    # key = target_idx, value = value in all bins
     sent_intrp_all = defaultdict(list)
     sim_score_all = defaultdict(list)
     ppl_base_all = []
@@ -120,8 +111,8 @@ def run(target_type, model, vocab, seed_num):
             for sim_level in SIM_RANGE:
                 sent_intrp, score_intrp = intrp_data[(idx + 1, sim_level)]
                 # logging
-                sent_intrp_all[sim_level].append(sent_intrp)
-                sim_score_all[sim_level].append(score_intrp)
+                sent_intrp_all[idx+1].append(sent_intrp)
+                sim_score_all[idx+1].append(score_intrp)
 
                 _, sent_intrp = word2idx([sent_intrp], vocab)  # embedding
                 sent_intrp = sent_intrp[0]
@@ -135,7 +126,7 @@ def run(target_type, model, vocab, seed_num):
                     sent, model, vocab, hid_intrp_prev[sim_level])
 
                 # logging
-                ppl_intrp_all[sim_level].append(ppl_intrp.item())
+                ppl_intrp_all[idx].append(ppl_intrp.item())
 
             target_sent_all.append(sents_text[idx])
             ppl_base_all.append(ppl_base.item())
@@ -144,44 +135,47 @@ def run(target_type, model, vocab, seed_num):
     # save data
     results = pd.concat([
         pd.Series(target_inds.tolist()), pd.Series(target_sent_all), 
-        pd.Series(sent_intrp_all[0]), 
-        pd.Series(sent_intrp_all[1]),
-        pd.Series(sent_intrp_all[2]), 
-        pd.Series(sim_score_all[0]), 
-        pd.Series(sim_score_all[1]), 
-        pd.Series(sim_score_all[2]),
+        pd.Series(sent_intrp_all.values()),
+        pd.Series(sim_score_all.values()), 
         pd.Series(ppl_base_all), 
         pd.Series(ppl_unintrp_all),  
-        pd.Series(ppl_intrp_all[0]), 
-        pd.Series(ppl_intrp_all[1]),
-        pd.Series(ppl_intrp_all[2])
+        pd.Series(ppl_intrp_all.values())
     ],
     keys=[
-        "target index", "target sentence", 
-        "low sim interruption sentene", 
-        "mid sim interruption sentene", 
-        "high sim interruption sentene",
-        "low sim score", 
-        "mid sim score", 
-        "high sim score",
-        "base PPL",
-        "uninterrupted PPL",
-        "interrupted PPL low sim",
-        "interrupted PPL mid sim",
-        "interrupted PPL high sim",
+        "target_idx", 
+        "target_sent", 
+        "sents_intrp_all_bins",
+        "sim_intrp_all_bins",
+        "base_PPL",
+        "unintrp_PPL",
+        "intrp_PPL_all_bins"
     ],
     axis=1)
 
-    results.to_csv(f'./results/ppl_{target_type}_seed_{seed_num}.csv', index=False)
+    results.to_csv(f'./results/ppl_LSTM_{model_size}_results_{target_type}_seed_{seed_num}.csv', index=False)
 
-
+# Run experiments
 
 model_100_file = './data/LSTM_40m/LSTM_100_40m_a_0-d0.2.pt'
+model_400_file = './data/LSTM_40m/LSTM_400_40m_a_10-d0.2.pt'
+model_1600_file = './data/LSTM_40m/LSTM_1600_40m_a_20-d0.2.pt'
+
 model_100 = torch.load(model_100_file, map_location=torch.device('cpu'))
 model_100.eval()
+
+model_400 = torch.load(model_400_file, map_location=torch.device('cpu'))
+model_400.eval()
+
+model_1600 = torch.load(model_1600_file, map_location=torch.device('cpu'))
+model_1600.eval()
 
 vocab_file = "./data/vocab.txt"
 vocab = Dictionary(vocab_file)
 
-run("story", model_100, vocab, seed_num=1)
-run("article", model_100, vocab, seed_num=1)
+
+for model, model_size in zip([model_100, model_400, model_1600],
+                                [100,400,1600]):
+    for i in tqdm(range(50)):
+        print(f"Model {model_size}, Seed {i+1}")
+        run("story", model_100, model_size, vocab, seed_num=i+1)
+        run("article", model_100, model_size, vocab, seed_num=i+1)
