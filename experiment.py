@@ -15,6 +15,7 @@ RUN_NUM = 50    # total number of runs
 TARGET_NUM = 5  # number of targets to select
 TARGET_IDX_LOW = 6  # start selecting target from the n-th sentence
 SIM_RANGE = range(6)  # similarity range
+INTRP_SENT_NUM = 1      # number of interrupting sentences (unrelated to each other)
 
 # data path
 data_dir = './data'
@@ -33,7 +34,7 @@ article_pool_path = os.path.join(
     'diverseSim_interruptions_APAMarriageArticle_pool_brown_allCatges_seed_1.xlsx')
 
 
-def prepare_input(target_type, seed_num):
+def prepare_input(target_type, seed_num, intrp_sent_num):
     if target_type == "story":
         sents, _ = preprocess(story_path)
         pool = pd.read_excel(story_pool_path)
@@ -46,7 +47,7 @@ def prepare_input(target_type, seed_num):
     target_inds = np.random.randint(TARGET_IDX_LOW, len(sents), TARGET_NUM)
 
     # interruption data as a dictionary
-        # {(target_idx, sim_level) : (intrp_sent, score)}
+        # {(target_idx, sim_level) : ([intrp_sent(s)], [score(s)])}
         # where sim_level ranges from 1-10
     intrp_data = {}
 
@@ -56,17 +57,18 @@ def prepare_input(target_type, seed_num):
         assert (sents[idx] == target_sent)
 
         for sim_level in SIM_RANGE:
-            sim_sent = pool[f'sents_sim_intrp_{target_type}_bin{sim_level+1}_all'][idx]
-            sim_sent = ast.literal_eval(sim_sent)[seed_num - 1]
-            sim_score = pool[f'sim_intrp_{target_type}_bin{sim_level+1}_all'][idx]
-            sim_score = ast.literal_eval(sim_score)[seed_num - 1]
+            start_idx = seed_num - 1 # starting point of intrp sents selection
+            sim_sents = pool[f'sents_sim_intrp_{target_type}_bin{sim_level+1}_all'][idx]
+            sim_sents = ast.literal_eval(sim_sents)[start_idx: start_idx + intrp_sent_num]
+            sim_scores = pool[f'sim_intrp_{target_type}_bin{sim_level+1}_all'][idx]
+            sim_scores = ast.literal_eval(sim_scores)[start_idx: start_idx + intrp_sent_num]
 
-            intrp_data[(idx, sim_level)] = (sim_sent, sim_score)
+            intrp_data[(idx, sim_level)] = (sim_sents, sim_scores)
 
     return target_inds, intrp_data
 
 
-def run(target_type, model, model_size, vocab, seed_num):
+def run(target_type, model, model_size, vocab, seed_num, intrp_sent_num=1):
 
     if target_type == 'story':
         sents_text, _ = preprocess(story_path)
@@ -74,15 +76,15 @@ def run(target_type, model, model_size, vocab, seed_num):
         sents_text, _ = preprocess(article_path)
 
     _, sents = word2idx(sents_text, vocab)
-    target_inds, intrp_data = prepare_input(target_type, seed_num)
+    target_inds, intrp_data = prepare_input(target_type, seed_num, intrp_sent_num)
     hid_size = model.nhid
     hid_init = model.init_hidden(bsz=1)
 
     # logging
     target_sent_all = []
     # key = target_idx, value = value in all bins
-    sent_intrp_all = defaultdict(list)
-    sim_score_all = defaultdict(list)
+    sents_intrp_all = defaultdict(list)
+    sim_scores_all = defaultdict(list)
     ppl_base_all = []
     ppl_unintrp_all = []
     ppl_intrp_all = defaultdict(list)
@@ -109,15 +111,15 @@ def run(target_type, model, model_size, vocab, seed_num):
         if idx + 1 in target_inds:
             hid_intrp_prev = []  # hidden states after viewing the intrp sents
             for sim_level in SIM_RANGE:
-                sent_intrp, score_intrp = intrp_data[(idx + 1, sim_level)]
+                sents_intrp, scores_intrp = intrp_data[(idx + 1, sim_level)]
                 # logging
-                sent_intrp_all[idx+1].append(sent_intrp)
-                sim_score_all[idx+1].append(score_intrp)
+                sents_intrp_all[idx+1].append(sents_intrp)
+                sim_scores_all[idx+1].append(scores_intrp)
 
-                _, sent_intrp = word2idx([sent_intrp], vocab)  # embedding
-                sent_intrp = sent_intrp[0]
+                _, sents_intrp = word2idx(sents_intrp, vocab)  # embedding
+                sents_intrp = torch.cat(sents_intrp)
                 ppl_intrp, out_intrp, hid_intrp = sent_perplexity(
-                    sent_intrp, model, vocab, hid_unintrp)
+                    sents_intrp, model, vocab, hid_unintrp)
                 hid_intrp_prev.append(hid_intrp)
 
         if idx in target_inds:
@@ -135,8 +137,8 @@ def run(target_type, model, model_size, vocab, seed_num):
     # save data
     results = pd.concat([
         pd.Series(target_inds.tolist()), pd.Series(target_sent_all), 
-        pd.Series(sent_intrp_all.values()),
-        pd.Series(sim_score_all.values()), 
+        pd.Series(sents_intrp_all.values()),
+        pd.Series(sim_scores_all.values()), 
         pd.Series(ppl_base_all), 
         pd.Series(ppl_unintrp_all),  
         pd.Series(ppl_intrp_all.values())
@@ -152,7 +154,7 @@ def run(target_type, model, model_size, vocab, seed_num):
     ],
     axis=1)
 
-    results.to_csv(f'./results/ppl_LSTM_{model_size}_results_{target_type}_seed_{seed_num}.csv', index=False)
+    results.to_csv(f'./results/{intrp_sent_num}-sentence interruption/ppl_LSTM_{model_size}_results_{target_type}_seed_{seed_num}.csv', index=False)
 
 # Run experiments
 
@@ -175,7 +177,7 @@ vocab = Dictionary(vocab_file)
 
 for model, model_size in zip([model_100, model_400, model_1600],
                                 [100,400,1600]):
-    for i in tqdm(range(50)):
-        print(f"Model {model_size}, Seed {i+1}")
-        run("story", model_100, model_size, vocab, seed_num=i+1)
-        run("article", model_100, model_size, vocab, seed_num=i+1)
+    print(f"Model {model_size}")
+    for i in tqdm(range(RUN_NUM-INTRP_SENT_NUM+1)):
+        run("story", model_100, model_size, vocab, seed_num=i+1, intrp_sent_num=INTRP_SENT_NUM)
+        run("article", model_100, model_size, vocab, seed_num=i+1, intrp_sent_num=INTRP_SENT_NUM)
