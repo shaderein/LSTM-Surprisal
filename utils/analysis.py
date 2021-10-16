@@ -3,7 +3,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 from utils.data import Dictionary
-import model
 
 def sent_perplexity(sent, model, vocab:Dictionary, hidden_init):
     """

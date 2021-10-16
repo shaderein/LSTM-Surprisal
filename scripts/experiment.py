@@ -164,7 +164,6 @@ model_1600_file = './data/LSTM_40m/LSTM_1600_40m_a_20-d0.2.pt'
 
 model_100 = torch.load(model_100_file, map_location=torch.device('cpu'))
 model_100.eval()
-
 model_400 = torch.load(model_400_file, map_location=torch.device('cpu'))
 model_400.eval()
 

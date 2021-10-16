@@ -31,7 +31,6 @@ def preprocess(file_path, debug_mode=False):
         if highlight:
             highlights = highlights + sent_tokenize(highlight)
 
-    # FIXME: sentences makred by their contents regardless of positions
     is_hightlight = [True if s in highlights else False for s in full_text]
 
     if debug_mode:
