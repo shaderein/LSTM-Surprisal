@@ -9,29 +9,33 @@ from collections import defaultdict
 
 from utils.data import preprocess, word2idx, Dictionary
 from utils.analysis import sent_perplexity
+from utils.load import create_folders_if_necessary, load_text_path, load_models
 
 # Hyperparams for now
-RUN_NUM = 50    # total number of runs
+RUN_NUM = 49    # total number of runs
+INTRP_SENT_NUM = 2  # number of interrupting sentences (unrelated to each other)
 TARGET_NUM = 5  # number of targets to select
 TARGET_IDX_LOW = 6  # start selecting target from the n-th sentence
 SIM_RANGE = range(6)  # similarity range
-INTRP_SENT_NUM = 1      # number of interrupting sentences (unrelated to each other)
 
-# data path
-data_dir = './data'
+
+assert(RUN_NUM+INTRP_SENT_NUM-1 <= 50)
+
+# model size of interested. Should be in [100,400,1600]
+models_size = [100,400,1600]
+
+# saving path
 result_dir = './results'
-story_path = os.path.join(data_dir, "text",
-                          'On a Rainy Day - by Pat Garcia.docx')
-article_path = os.path.join(
-    data_dir, "text", 'Can this marriage be saved -  APA Sicence Watch.docx')
 
-story_pool_path = os.path.join(
-    data_dir, "pools",
-    'diverseSim_interruptions_RainyDayStory_pool_brown_allCatges_seed_1.xlsx')
+# load models
+models = load_models(models_size)
 
-article_pool_path = os.path.join(
-    data_dir, 'pools',
-    'diverseSim_interruptions_APAMarriageArticle_pool_brown_allCatges_seed_1.xlsx')
+# load text path and vocab
+story_path, article_path, \
+story_pool_path, article_pool_path = load_text_path()
+
+vocab_file = "./data/vocab.txt"
+vocab = Dictionary(vocab_file)
 
 
 def prepare_input(target_type, seed_num, intrp_sent_num):
@@ -154,29 +158,17 @@ def run(target_type, model, model_size, vocab, seed_num, intrp_sent_num=1):
     ],
     axis=1)
 
-    results.to_csv(f'./results/{intrp_sent_num}-sentence interruption/ppl_LSTM_{model_size}_results_{target_type}_seed_{seed_num}.csv', index=False)
+    saved_folder = os.path.join(result_dir, f"{intrp_sent_num}-sentence interruption/")
+    saved_file_name = f'ppl_LSTM_{model_size}_results_{target_type}_seed_{seed_num}.csv'
+    create_folders_if_necessary(saved_folder)
+
+    results.to_csv(os.path.join(saved_folder, saved_file_name), index=False)
 
 # Run experiments
 
-model_100_file = './data/LSTM_40m/LSTM_100_40m_a_0-d0.2.pt'
-model_400_file = './data/LSTM_40m/LSTM_400_40m_a_10-d0.2.pt'
-model_1600_file = './data/LSTM_40m/LSTM_1600_40m_a_20-d0.2.pt'
-
-model_100 = torch.load(model_100_file, map_location=torch.device('cpu'))
-model_100.eval()
-model_400 = torch.load(model_400_file, map_location=torch.device('cpu'))
-model_400.eval()
-
-model_1600 = torch.load(model_1600_file, map_location=torch.device('cpu'))
-model_1600.eval()
-
-vocab_file = "./data/vocab.txt"
-vocab = Dictionary(vocab_file)
-
-
-for model, model_size in zip([model_100, model_400, model_1600],
-                                [100,400,1600]):
+for model in models:
+    model_size = model.nhid
     print(f"Model {model_size}")
-    for i in tqdm(range(RUN_NUM-INTRP_SENT_NUM+1)):
-        run("story", model_100, model_size, vocab, seed_num=i+1, intrp_sent_num=INTRP_SENT_NUM)
-        run("article", model_100, model_size, vocab, seed_num=i+1, intrp_sent_num=INTRP_SENT_NUM)
+    for i in tqdm(range(RUN_NUM)):
+        run("story", model, model_size, vocab, seed_num=i+1, intrp_sent_num=INTRP_SENT_NUM)
+        run("article", model, model_size, vocab, seed_num=i+1, intrp_sent_num=INTRP_SENT_NUM)
