@@ -6,22 +6,32 @@ def create_folders_if_necessary(path):
     if not os.path.isdir(dirname):
         os.makedirs(dirname)
 
-def load_text_path():
+def load_text_path(paraphrase=False):
     data_dir = './data'
     story_path = os.path.join(data_dir, "text",
                           'On a Rainy Day - by Pat Garcia.docx')
     article_path = os.path.join(
         data_dir, "text", 'Can this marriage be saved -  APA Sicence Watch.docx')
 
-    story_pool_path = os.path.join(
-        data_dir, "pools",
-        'diverseSim_interruptions_RainyDayStory_pool_brown_allCatges_seed_1.xlsx')
+    if paraphrase:
+        story_pool_path = os.path.join(
+            data_dir, "pools",
+            'paraphrased_RainyDayStory_pool.xlsx')
 
-    article_pool_path = os.path.join(
-        data_dir, 'pools',
-        'diverseSim_interruptions_APAMarriageArticle_pool_brown_allCatges_seed_1.xlsx')
+        article_pool_path = os.path.join(
+            data_dir, 'pools',
+            'paraphrased_APAMarriageArticle_pool.xlsx')
+    else:
+        story_pool_path = os.path.join(
+            data_dir, "pools",
+            'diverseSim_interruptions_RainyDayStory_pool_brown_allCatges_seed_1.xlsx')
 
-    return story_path, article_path, story_pool_path, article_pool_path
+        article_pool_path = os.path.join(
+            data_dir, 'pools',
+            'diverseSim_interruptions_APAMarriageArticle_pool_brown_allCatges_seed_1.xlsx')
+
+    return story_path, article_path, \
+            story_pool_path, article_pool_path
 
 def load_models(sizes):
     models_path = {100:'./data/LSTM_40m/LSTM_100_40m_a_0-d0.2.pt',

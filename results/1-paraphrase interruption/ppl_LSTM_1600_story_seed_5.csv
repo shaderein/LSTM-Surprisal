@@ -1,0 +1,6 @@
+target_idx,target_sent,sents_intrp_all_bins,sim_intrp_all_bins,base_PPL,unintrp_PPL,intrp_PPL_all_bins
+361,"“As far as meeting her is concerned, I’m not interested.",[['Meeting her is not something I am interested in.']],[[0.76476979]],60.70002746582031,24.632366180419922,[27.697587966918945]
+212,"The man to your right is Samuel Adams, to your left, Ted Davidson, and behind me…”","[['Ted Davidson is to your left, and Samuel Adams is to your right.']]",[[0.86602366]],75.11356353759766,43.13569641113281,[34.94586181640625]
+195,“Why?,[['Is that why?']],[[0.6334852]],1235.480224609375,80.1901626586914,[59.46025085449219]
+124,Luigi smiled at Tess.,[['The person smiled at the person.']],[[0.29974902]],58.571746826171875,45.27226257324219,[26.162006378173828]
+406,"Bringing her close to him, he let her feel his need for her.",[['She felt his need for her when he brought her close to him.']],[[0.55201006]],88.60620880126953,57.82585525512695,[48.965579986572266]

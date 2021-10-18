@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import torch
+import re
 from tqdm import tqdm
 import ast
 import os
@@ -12,17 +13,20 @@ from utils.analysis import sent_perplexity
 from utils.load import create_folders_if_necessary, load_text_path, load_models
 
 # Hyperparams for now
-RUN_NUM = 49    # total number of runs
-INTRP_SENT_NUM = 2  # number of interrupting sentences (unrelated to each other)
+RUN_NUM = 5    # total number of runs
+INTRP_SENT_NUM = 1  # number of interrupting sentences (unrelated to each other)
 TARGET_NUM = 5  # number of targets to select
 TARGET_IDX_LOW = 6  # start selecting target from the n-th sentence
-SIM_RANGE = range(6)  # similarity range
+SIM_RANGE = range(1)  # similarity range
+PARAPHRASE = True   # Use paraphrase sentences for interruption
 
-
+# Modified above for different experiment conditions
 assert(RUN_NUM+INTRP_SENT_NUM-1 <= 50)
+if PARAPHRASE:
+    assert(SIM_RANGE==range(1))
 
 # model size of interested. Should be in [100,400,1600]
-models_size = [100,400,1600]
+models_size = [1600]
 
 # saving path
 result_dir = './results'
@@ -32,7 +36,7 @@ models = load_models(models_size)
 
 # load text path and vocab
 story_path, article_path, \
-story_pool_path, article_pool_path = load_text_path()
+story_pool_path, article_pool_path = load_text_path(PARAPHRASE)
 
 vocab_file = "./data/vocab.txt"
 vocab = Dictionary(vocab_file)
@@ -56,16 +60,31 @@ def prepare_input(target_type, seed_num, intrp_sent_num):
     intrp_data = {}
 
     for idx in target_inds:
-        target_cell = pool['target_sent'][idx]
-        target_sent = ast.literal_eval(target_cell)[0]
+        # get the target sentence
+        if PARAPHRASE:
+            target_sent = pool['target_sent'][idx]
+            sim_sents_header = 'paraphrased'
+            sim_scores_header = 'sim_scores'
+        else:
+            target_cell = pool['target_sent'][idx]
+            target_sent = ast.literal_eval(target_cell)[0]
+            sim_sents_header = f'sents_sim_intrp_{target_type}_bin{sim_level+1}_all'
+            sim_scores_header = f'sim_intrp_{target_type}_bin{sim_level+1}_all'
+
         assert (sents[idx] == target_sent)
 
+        # get interrupting sentences
         for sim_level in SIM_RANGE:
             start_idx = seed_num - 1 # starting point of intrp sents selection
-            sim_sents = pool[f'sents_sim_intrp_{target_type}_bin{sim_level+1}_all'][idx]
-            sim_sents = ast.literal_eval(sim_sents)[start_idx: start_idx + intrp_sent_num]
-            sim_scores = pool[f'sim_intrp_{target_type}_bin{sim_level+1}_all'][idx]
-            sim_scores = ast.literal_eval(sim_scores)[start_idx: start_idx + intrp_sent_num]
+            sim_sents = pool[sim_sents_header][idx]
+            sim_sents = ast.literal_eval(sim_sents)\
+                            [start_idx: start_idx + intrp_sent_num]
+            sim_scores = pool[sim_scores_header][idx]
+            if PARAPHRASE:
+                sim_scores = re.sub(" +", ",", sim_scores)
+                sim_scores = sim_scores.replace(",]", "]")
+            sim_scores = ast.literal_eval(sim_scores)\
+                            [start_idx: start_idx + intrp_sent_num]
 
             intrp_data[(idx, sim_level)] = (sim_sents, sim_scores)
 
@@ -158,14 +177,18 @@ def run(target_type, model, model_size, vocab, seed_num, intrp_sent_num=1):
     ],
     axis=1)
 
-    saved_folder = os.path.join(result_dir, f"{intrp_sent_num}-sentence interruption/")
-    saved_file_name = f'ppl_LSTM_{model_size}_results_{target_type}_seed_{seed_num}.csv'
+    if PARAPHRASE: 
+        saved_folder = os.path.join(result_dir, 
+                                    f"{intrp_sent_num}-paraphrase interruption/")
+    else:
+        saved_folder = os.path.join(result_dir, 
+                                    f"{intrp_sent_num}-sentence interruption/")
+    saved_file_name = f'ppl_LSTM_{model_size}_{target_type}_seed_{seed_num}.csv'
     create_folders_if_necessary(saved_folder)
 
     results.to_csv(os.path.join(saved_folder, saved_file_name), index=False)
 
 # Run experiments
-
 for model in models:
     model_size = model.nhid
     print(f"Model {model_size}")

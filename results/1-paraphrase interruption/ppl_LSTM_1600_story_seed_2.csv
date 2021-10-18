@@ -1,0 +1,6 @@
+target_idx,target_sent,sents_intrp_all_bins,sim_intrp_all_bins,base_PPL,unintrp_PPL,intrp_PPL_all_bins
+174,"Hearing a loud bang in the hallway outside her apartment, she quietly hoped the new people wouldn’t be as loud when they started living in the apartment.","[[""She heard a loud bang in the hallway and hoped the new people wouldn't be as loud when they moved into the apartment.""]]",[[0.87893999]],101.04507446289062,83.96114349365234,[74.12368774414062]
+21,Whoever it was must have decided that she wasn’t answering quickly enough.,"[[""Someone must have decided that she wasn't answering quickly enough.""]]",[[0.86899954]],217.86338806152344,110.55329895019531,[104.11602783203125]
+78,Another man had joined him because she heard two voices.,[['She heard two voices and another man joined her.']],[[0.74975836]],230.96463012695312,108.16260528564453,[83.81353759765625]
+28,"Opening the door, Carla greeted her with a smile.",[['Carla greeted her with a smile as he opened the door.']],[[0.66827035]],40.11886215209961,22.236103057861328,[19.467500686645508]
+305,“There is no us.,[['There is no one.']],[[0.62453926]],151.56248474121094,51.882484436035156,[48.45130157470703]

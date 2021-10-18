@@ -1,0 +1,6 @@
+target_idx,target_sent,sents_intrp_all_bins,sim_intrp_all_bins,base_PPL,unintrp_PPL,intrp_PPL_all_bins
+43,"After I get Carla settled, you’re mine, Lady.","[['You are mine, Lady, after I get Carla settled.']]",[[0.89726555]],257.99786376953125,150.69483947753906,[81.80850982666016]
+241,Another man had joined him because she heard two voices.,"[[""She heard two voices and that's when another man joined him.""]]",[[0.80565578]],230.96463012695312,108.16260528564453,[82.09569549560547]
+402,"“Thank you, but it was a long night.","[['Thank you, but it was a long night.']]",[[0.83958054]],75.64282989501953,34.86396026611328,[42.878658294677734]
+78,Arrogant Boor.,[['Boor is arrogant.']],[[0.69111669]],365.4652404785156,1997.712646484375,[1126.71484375]
+261,“Are you sure?” Tess asked softly.,[['Tess asked if he was sure.']],[[0.62262654]],1484.40625,486.8278503417969,[420.0422058105469]
