@@ -162,7 +162,7 @@ def run(target_type, model, model_size, vocab, seed_num, intrp_sent_num=1):
 
     # save data
     results = pd.concat([
-        pd.Series(target_inds.tolist()), pd.Series(target_sent_all), 
+        pd.Series((target_inds+(TARGET_DISTANCE-1)).tolist()), pd.Series(target_sent_all), 
         pd.Series(sents_intrp_all.values()),
         pd.Series(sim_scores_all.values()), 
         pd.Series(ppl_base_all), 
