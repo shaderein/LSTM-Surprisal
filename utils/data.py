@@ -7,6 +7,8 @@ import nltk
 nltk.download('punkt')
 from nltk import sent_tokenize, word_tokenize
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 
 def preprocess(file_path, debug_mode=False):
     """
@@ -49,7 +51,7 @@ def word2idx(sents, vocab):
         # Note: should add eos to reduce PPL
         # Note: all sentences start with <eos>
         words = ['<eos>'] + word_tokenize(s.lower()) 
-        ids = torch.LongTensor(len(words))
+        ids = torch.LongTensor(len(words)).to(device)
         processed_words = words
         for i, word in enumerate(words):
             # unk words that are OOV

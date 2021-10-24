@@ -1,6 +1,8 @@
 import os
 import torch
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 def create_folders_if_necessary(path):
     dirname = os.path.dirname(path)
     if not os.path.isdir(dirname):
@@ -41,7 +43,7 @@ def load_models(sizes):
     models = []
     for size in sizes:
         path = models_path[size]
-        model = torch.load(path, map_location=torch.device('cpu'))
+        model = torch.load(path, map_location=torch.device(device))
         model.eval()
         models.append(model)
 

@@ -13,12 +13,13 @@ from utils.analysis import sent_perplexity
 from utils.load import create_folders_if_necessary, load_text_path, load_models
 
 # Hyperparams for now
-RUN_NUM = 5    # total number of runs
-INTRP_SENT_NUM = 1  # number of interrupting sentences (unrelated to each other)
+RUN_NUM = 20    # total number of runs
+INTRP_SENT_NUM = 4  # number of interrupting sentences (unrelated to each other)
 TARGET_NUM = 5  # number of targets to select
 TARGET_IDX_LOW = 6  # start selecting target from the n-th sentence
-SIM_RANGE = range(1)  # similarity range
-PARAPHRASE = True   # Use paraphrase sentences for interruption
+TARGET_DISTANCE = 5  # target distance after the interruption. 1=1st sent right after it.
+SIM_RANGE = range(6)  # similarity range
+PARAPHRASE = False   # Use paraphrase sentences for interruption
 
 # Modified above for different experiment conditions
 assert(RUN_NUM+INTRP_SENT_NUM-1 <= 50)
@@ -63,18 +64,20 @@ def prepare_input(target_type, seed_num, intrp_sent_num):
         # get the target sentence
         if PARAPHRASE:
             target_sent = pool['target_sent'][idx]
-            sim_sents_header = 'paraphrased'
-            sim_scores_header = 'sim_scores'
         else:
             target_cell = pool['target_sent'][idx]
             target_sent = ast.literal_eval(target_cell)[0]
-            sim_sents_header = f'sents_sim_intrp_{target_type}_bin{sim_level+1}_all'
-            sim_scores_header = f'sim_intrp_{target_type}_bin{sim_level+1}_all'
 
         assert (sents[idx] == target_sent)
 
         # get interrupting sentences
         for sim_level in SIM_RANGE:
+            if PARAPHRASE:
+                sim_sents_header = 'paraphrased'
+                sim_scores_header = 'sim_scores'
+            else:
+                sim_sents_header = f'sents_sim_intrp_{target_type}_bin{sim_level+1}_all'
+                sim_scores_header = f'sim_intrp_{target_type}_bin{sim_level+1}_all'
             start_idx = seed_num - 1 # starting point of intrp sents selection
             sim_sents = pool[sim_sents_header][idx]
             sim_sents = ast.literal_eval(sim_sents)\
@@ -145,7 +148,7 @@ def run(target_type, model, model_size, vocab, seed_num, intrp_sent_num=1):
                     sents_intrp, model, vocab, hid_unintrp)
                 hid_intrp_prev.append(hid_intrp)
 
-        if idx in target_inds:
+        if idx in target_inds+(TARGET_DISTANCE-1):
             for sim_level in SIM_RANGE:
                 ppl_intrp, out_intrp, hid_intrp = sent_perplexity(
                     sent, model, vocab, hid_intrp_prev[sim_level])
@@ -179,10 +182,10 @@ def run(target_type, model, model_size, vocab, seed_num, intrp_sent_num=1):
 
     if PARAPHRASE: 
         saved_folder = os.path.join(result_dir, 
-                                    f"{intrp_sent_num}-paraphrase interruption/")
+                                    f"{intrp_sent_num}-paraphrase interruption Target {TARGET_DISTANCE}/")
     else:
         saved_folder = os.path.join(result_dir, 
-                                    f"{intrp_sent_num}-sentence interruption/")
+                                    f"{intrp_sent_num}-sentence interruption Target {TARGET_DISTANCE}/")
     saved_file_name = f'ppl_LSTM_{model_size}_{target_type}_seed_{seed_num}.csv'
     create_folders_if_necessary(saved_folder)
 
