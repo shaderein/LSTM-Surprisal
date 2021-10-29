@@ -12,12 +12,21 @@ from utils.data import preprocess, word2idx, Dictionary
 from utils.analysis import sent_perplexity
 from utils.load import create_folders_if_necessary, load_text_path, load_models
 
+# suppress warnings
+import warnings
+warnings.filterwarnings('ignore')
+
 # Hyperparams for now
 RUN_NUM = 20    # total number of runs
+
 INTRP_SENT_NUM = 4  # number of interrupting sentences (unrelated to each other)
+
 TARGET_NUM = 5  # number of targets to select
 TARGET_IDX_LOW = 6  # start selecting target from the n-th sentence
-TARGET_DISTANCE = 5  # target distance after the interruption. 1=1st sent right after it.
+TARGET_DISTANCE = 0  # target distance after the interruption. (aka offset) 
+                     # TARGET_DISTANCE=0 -> the target sentence is the 1st sent
+                     # right after the interruption !!!!!!!
+
 SIM_RANGE = range(6)  # similarity range
 PARAPHRASE = False   # Use paraphrase sentences for interruption
 
@@ -51,24 +60,29 @@ def prepare_input(target_type, seed_num, intrp_sent_num):
         sents, _ = preprocess(article_path)
         pool = pd.read_excel(article_pool_path)
 
-    # randomly select target sents from the raw text
+    # Randomly select interruption point from the raw text.
+    # In the experiment, the input text stream will be interrupted before
+    # the model reads the intrp_inds-th sentence.
+    # Therefore, if TARGET_DISTANCE=0, intrp_inds are exactly the target
+    # sentence indices.
     np.random.seed(seed_num)
-    target_inds = np.random.randint(TARGET_IDX_LOW, len(sents), TARGET_NUM)
+    intrp_inds = np.random.randint(TARGET_IDX_LOW, len(sents), TARGET_NUM)
 
     # interruption data as a dictionary
-        # {(target_idx, sim_level) : ([intrp_sent(s)], [score(s)])}
+        # {(intrp_idx, sim_level) : ([intrp_sent(s)], [score(s)])}
         # where sim_level ranges from 1-10
     intrp_data = {}
 
-    for idx in target_inds:
-        # get the target sentence
+    for idx in intrp_inds:
+        # locate the row of the interrupted sentence, right before 
+        # which the interrupting sentence will be inserted, in the pool
         if PARAPHRASE:
-            target_sent = pool['target_sent'][idx]
+            intrpted_sent = pool['target_sent'][idx]
         else:
             target_cell = pool['target_sent'][idx]
-            target_sent = ast.literal_eval(target_cell)[0]
+            intrpted_sent = ast.literal_eval(target_cell)[0]
 
-        assert (sents[idx] == target_sent)
+        assert (sents[idx] == intrpted_sent)
 
         # get interrupting sentences
         for sim_level in SIM_RANGE:
@@ -91,7 +105,7 @@ def prepare_input(target_type, seed_num, intrp_sent_num):
 
             intrp_data[(idx, sim_level)] = (sim_sents, sim_scores)
 
-    return target_inds, intrp_data
+    return intrp_inds, intrp_data
 
 
 def run(target_type, model, model_size, vocab, seed_num, intrp_sent_num=1):
@@ -102,7 +116,7 @@ def run(target_type, model, model_size, vocab, seed_num, intrp_sent_num=1):
         sents_text, _ = preprocess(article_path)
 
     _, sents = word2idx(sents_text, vocab)
-    target_inds, intrp_data = prepare_input(target_type, seed_num, intrp_sent_num)
+    intrp_inds, intrp_data = prepare_input(target_type, seed_num, intrp_sent_num)
     hid_size = model.nhid
     hid_init = model.init_hidden(bsz=1)
 
@@ -133,9 +147,10 @@ def run(target_type, model, model_size, vocab, seed_num, intrp_sent_num=1):
 
         # Interupted PPL (with context)
 
-        # ordered by the similarity level (low->high)
-        if idx + 1 in target_inds:
-            hid_intrp_prev = []  # hidden states after viewing the intrp sents
+        # Append interrupting sentence into the context
+        if idx + 1 in intrp_inds:
+            hid_intrp_all = []  # hidden states after viewing the intrp sents
+                                 # reset at each each interruption point
             for sim_level in SIM_RANGE:
                 sents_intrp, scores_intrp = intrp_data[(idx + 1, sim_level)]
                 # logging
@@ -144,14 +159,30 @@ def run(target_type, model, model_size, vocab, seed_num, intrp_sent_num=1):
 
                 _, sents_intrp = word2idx(sents_intrp, vocab)  # embedding
                 sents_intrp = torch.cat(sents_intrp)
+                # context before this point is uninterrupted
                 ppl_intrp, out_intrp, hid_intrp = sent_perplexity(
                     sents_intrp, model, vocab, hid_unintrp)
-                hid_intrp_prev.append(hid_intrp)
+                hid_intrp_all.append(hid_intrp)
 
-        if idx in target_inds+(TARGET_DISTANCE-1):
+        # Append the sentences into the context if it's between the 
+        # interrupting sents and the actual target sentences. 
+        # (i.e. nothing to append if TARGET_DISTANCE=0)
+        for i in range(TARGET_DISTANCE):
+            if idx in intrp_inds+i:
+                for sim_level in SIM_RANGE:
+                    ppl_intrp, out_intrp, hid_intrp = sent_perplexity(
+                        sent, model, vocab, hid_intrp_all[sim_level])
+                    # Update the context. Now the context contains:
+                    #   intact context before the interruption point
+                    # + interruptiong sentence
+                    # + (i+1)-th sentence after the interruption
+                    hid_intrp_all[sim_level] = hid_intrp
+
+        # Log PPL's when reaching the actual target sentences
+        if idx in intrp_inds+TARGET_DISTANCE:
             for sim_level in SIM_RANGE:
                 ppl_intrp, out_intrp, hid_intrp = sent_perplexity(
-                    sent, model, vocab, hid_intrp_prev[sim_level])
+                    sent, model, vocab, hid_intrp_all[sim_level])
 
                 # logging
                 ppl_intrp_all[idx].append(ppl_intrp.item())
@@ -162,7 +193,7 @@ def run(target_type, model, model_size, vocab, seed_num, intrp_sent_num=1):
 
     # save data
     results = pd.concat([
-        pd.Series((target_inds+(TARGET_DISTANCE-1)).tolist()), pd.Series(target_sent_all), 
+        pd.Series((intrp_inds+TARGET_DISTANCE).tolist()), pd.Series(target_sent_all), 
         pd.Series(sents_intrp_all.values()),
         pd.Series(sim_scores_all.values()), 
         pd.Series(ppl_base_all), 
@@ -182,10 +213,10 @@ def run(target_type, model, model_size, vocab, seed_num, intrp_sent_num=1):
 
     if PARAPHRASE: 
         saved_folder = os.path.join(result_dir, 
-                                    f"{intrp_sent_num}-paraphrase interruption Target {TARGET_DISTANCE}/")
+            f"{intrp_sent_num}-paraphrase interruption Target {TARGET_DISTANCE+1}/")
     else:
         saved_folder = os.path.join(result_dir, 
-                                    f"{intrp_sent_num}-sentence interruption Target {TARGET_DISTANCE}/")
+            f"{intrp_sent_num}-sentence interruption Target {TARGET_DISTANCE+1}/")
     saved_file_name = f'ppl_LSTM_{model_size}_{target_type}_seed_{seed_num}.csv'
     create_folders_if_necessary(saved_folder)
 
