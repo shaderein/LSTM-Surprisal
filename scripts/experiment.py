@@ -17,7 +17,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # Hyperparams for now
-RUN_NUM = 20    # total number of runs
+RUN_NUM = 47    # total number of runs
 
 INTRP_SENT_NUM = 4  # number of interrupting sentences (unrelated to each other)
 
@@ -126,6 +126,9 @@ def run(target_type, model, model_size, vocab, seed_num, intrp_sent_num=1):
     sents_intrp_all = defaultdict(list)
     sim_scores_all = defaultdict(list)
     ppl_base_all = []
+    ppl_local_all = defaultdict(list) # PPL at the target sentence after 
+                                      # viewing only the interrupting 
+                                      # sentences (local context)
     ppl_unintrp_all = []
     ppl_intrp_all = defaultdict(list)
 
@@ -151,6 +154,11 @@ def run(target_type, model, model_size, vocab, seed_num, intrp_sent_num=1):
         if idx + 1 in intrp_inds:
             hid_intrp_all = []  # hidden states after viewing the intrp sents
                                  # reset at each each interruption point
+
+            hid_local_all = []  # hidden states after viewing only the intrp
+                                #   sents (local context) without any preceding
+                                #   sents (global context)
+
             for sim_level in SIM_RANGE:
                 sents_intrp, scores_intrp = intrp_data[(idx + 1, sim_level)]
                 # logging
@@ -164,7 +172,17 @@ def run(target_type, model, model_size, vocab, seed_num, intrp_sent_num=1):
                     sents_intrp, model, vocab, hid_unintrp)
                 hid_intrp_all.append(hid_intrp)
 
-        # Append the sentences into the context if it's between the 
+                # get hidden states after viewing local context
+                _, _, hid_local = sent_perplexity(
+                    sents_intrp, model, vocab, hid_init)
+                hid_local_all.append(hid_local)
+
+        # TODO: improve readability of the code here
+
+        # QS: does it make sense to calculate PPL_local when distance>0?
+        # Haved implemented this calculation anyway
+
+        # Append sentences into the context if it's between the 
         # interrupting sents and the actual target sentences. 
         # (i.e. nothing to append if TARGET_DISTANCE=0)
         for i in range(TARGET_DISTANCE):
@@ -178,6 +196,11 @@ def run(target_type, model, model_size, vocab, seed_num, intrp_sent_num=1):
                     # + (i+1)-th sentence after the interruption
                     hid_intrp_all[sim_level] = hid_intrp
 
+                    # update local context
+                    _, _, hid_local = sent_perplexity(
+                        sent, model, vocab, hid_local_all[sim_level])
+                    hid_local_all[sim_level] = hid_local
+
         # Log PPL's when reaching the actual target sentences
         if idx in intrp_inds+TARGET_DISTANCE:
             for sim_level in SIM_RANGE:
@@ -186,6 +209,11 @@ def run(target_type, model, model_size, vocab, seed_num, intrp_sent_num=1):
 
                 # logging
                 ppl_intrp_all[idx].append(ppl_intrp.item())
+
+                # PPL after viewing only local context
+                ppl_local, _, hid_local = sent_perplexity(
+                    sent, model, vocab, hid_local_all[sim_level])
+                ppl_local_all[idx].append(ppl_local.item())
 
             target_sent_all.append(sents_text[idx])
             ppl_base_all.append(ppl_base.item())
@@ -198,7 +226,8 @@ def run(target_type, model, model_size, vocab, seed_num, intrp_sent_num=1):
         pd.Series(sim_scores_all.values()), 
         pd.Series(ppl_base_all), 
         pd.Series(ppl_unintrp_all),  
-        pd.Series(ppl_intrp_all.values())
+        pd.Series(ppl_intrp_all.values()),
+        pd.Series(ppl_local_all.values())
     ],
     keys=[
         "target_idx", 
@@ -207,7 +236,8 @@ def run(target_type, model, model_size, vocab, seed_num, intrp_sent_num=1):
         "sim_intrp_all_bins",
         "base_PPL",
         "unintrp_PPL",
-        "intrp_PPL_all_bins"
+        "intrp_PPL_all_bins",
+        "local_PPL_all_bins",
     ],
     axis=1)
 
