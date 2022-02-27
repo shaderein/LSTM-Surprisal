@@ -8,10 +8,12 @@ dependencies:
   - matplotlib
   - pip
   - ipykernel
+  - ipywidgets
   - pandas
   - tensorboard
   - nltk
   - openpyxl
+  - huggingface::transformers
   - pip:
     - tensorboardX>=1.6
     - python-docx
