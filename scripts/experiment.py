@@ -6,7 +6,7 @@ from tqdm import tqdm
 import ast
 import os
 
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 
 from utils.data import preprocess, word2idx, Dictionary
 from utils.analysis import sent_perplexity
@@ -34,11 +34,13 @@ TARGET_DISTANCE = 4  # target distance after the interruption. (aka offset)
 
 RUN_NUM = 47    # total number of runs
 
-conditions = [(1, 0, 50),
-              (2, 0, 49),
-              (4, 0, 47),
-              (4, 1, 47),
-              (4, 2, 47)]
+conditions = [
+              (1, 0, 48),
+              (2, 0, 23),
+              (4, 0, 11),
+              (4, 1, 11),
+              (4, 2, 11)
+            ]
 
 for INTRP_SENT_NUM, TARGET_DISTANCE, RUN_NUM in conditions:
 
@@ -108,16 +110,20 @@ for INTRP_SENT_NUM, TARGET_DISTANCE, RUN_NUM in conditions:
                         f'sents_sim_intrp_{target_type}_bin{sim_level+1}_all'
                     sim_scores_header = \
                         f'sim_intrp_{target_type}_bin{sim_level+1}_all'
-                start_idx = seed_num - 1 # starting point of intrp sents selection
+
+                # intrp sents sampling
+                start_idx = seed_num * intrp_sent_num + 1 
+                end_idx = (seed_num+1) * intrp_sent_num + 1 
+
                 sim_sents = pool[sim_sents_header][idx]
                 sim_sents = ast.literal_eval(sim_sents)\
-                                [start_idx: start_idx + intrp_sent_num]
+                                [start_idx: end_idx]
                 sim_scores = pool[sim_scores_header][idx]
                 if PARAPHRASE:
                     sim_scores = re.sub(" +", ",", sim_scores)
                     sim_scores = sim_scores.replace(",]", "]")
                 sim_scores = ast.literal_eval(sim_scores)\
-                                [start_idx: start_idx + intrp_sent_num]
+                                [start_idx: end_idx]
 
                 intrp_data[(idx, sim_level)] = (sim_sents, sim_scores)
 
@@ -137,16 +143,16 @@ for INTRP_SENT_NUM, TARGET_DISTANCE, RUN_NUM in conditions:
         hid_init = model.init_hidden(bsz=1)
 
         # logging
-        target_sent_all = []
+        target_sent_all = defaultdict(list)
         # key = target_idx, value = value in all bins
         sents_intrp_all = defaultdict(list)
         sim_scores_all = defaultdict(list)
-        ppl_base_all = []
-        ppl_loc_unintrp_all = []
+        ppl_base_all = defaultdict(list)
+        ppl_loc_unintrp_all = defaultdict(list)
         ppl_loc_intrp_all = defaultdict(list) # PPL at the target sentence after 
                                         # viewing only the interrupting 
                                         # sentences (local context)
-        ppl_glo_unintrp_all = []
+        ppl_glo_unintrp_all = defaultdict(list)
         ppl_glo_intrp_all = defaultdict(list)
 
         for idx in range(len(sents)):
@@ -222,21 +228,21 @@ for INTRP_SENT_NUM, TARGET_DISTANCE, RUN_NUM in conditions:
             ## Feed in Target and log PPL
             target_idx = idx + 1 + TARGET_DISTANCE
             sent_target = sents[target_idx]
-            target_sent_all.append(sents_text[target_idx])
+            target_sent_all[target_idx] = sents_text[target_idx]
 
             # PPL ( S_target )
             ppl_base, _, _ = sent_perplexity(sent_target, model, vocab, hid_init)
-            ppl_base_all.append(ppl_base.item())
+            ppl_base_all[target_idx] = ppl_base.item()
 
             # PPL ( S_target | S_global, S_local )
             ppl_glo_unintrp, _, hid_glo_unintrp = sent_perplexity(
                 sent_target, model, vocab, hid_glo_unintrp)
-            ppl_glo_unintrp_all.append(ppl_glo_unintrp.item())
+            ppl_glo_unintrp_all[target_idx] = ppl_glo_unintrp.item()
 
             # PPL ( S_target | S_local )
             ppl_loc_unintrp, _, hid_loc_unintrp = sent_perplexity(
                 sent_target, model, vocab, hid_loc_unintrp)
-            ppl_loc_unintrp_all.append(ppl_loc_unintrp.item())
+            ppl_loc_unintrp_all[target_idx] = ppl_loc_unintrp.item()
 
             for sim_level in SIM_RANGE:
                 # PPL ( S_target | S_global, S_intrp, S_local )
@@ -250,15 +256,18 @@ for INTRP_SENT_NUM, TARGET_DISTANCE, RUN_NUM in conditions:
                 ppl_loc_intrp_all[idx].append(ppl_local_intrp.item())
 
         # save data
+        # Notes: all dicts are sorted since items are inserted as the original
+        #        text is traversed. Need to explicitly sort the dict if the
+        #        implementation changes later
         results = pd.concat([
-            pd.Series((intrp_inds+TARGET_DISTANCE).tolist()), 
-            pd.Series(target_sent_all), 
+            pd.Series(target_sent_all.keys()), 
+            pd.Series(target_sent_all.values()), 
             pd.Series(sents_intrp_all.values()),
             pd.Series(sim_scores_all.values()), 
-            pd.Series(ppl_base_all), 
-            pd.Series(ppl_loc_unintrp_all),  
+            pd.Series(ppl_base_all.values()), 
+            pd.Series(ppl_loc_unintrp_all.values()),  
             pd.Series(ppl_loc_intrp_all.values()),
-            pd.Series(ppl_glo_unintrp_all),  
+            pd.Series(ppl_glo_unintrp_all.values()),  
             pd.Series(ppl_glo_intrp_all.values())
         ],
         keys=[
@@ -291,7 +300,7 @@ for INTRP_SENT_NUM, TARGET_DISTANCE, RUN_NUM in conditions:
         model_size = model.nhid
         print(f"Model {model_size}")
         for i in tqdm(range(RUN_NUM)):
-            run("story", model, model_size, vocab, seed_num=i+1, 
-                intrp_sent_num=INTRP_SENT_NUM)
             run("article", model, model_size, vocab, seed_num=i+1, 
+                intrp_sent_num=INTRP_SENT_NUM)
+            run("story", model, model_size, vocab, seed_num=i+1, 
                 intrp_sent_num=INTRP_SENT_NUM)
