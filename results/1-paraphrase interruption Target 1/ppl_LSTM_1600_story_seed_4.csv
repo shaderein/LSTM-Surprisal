@@ -1,6 +1,0 @@
-target_idx,target_sent,sents_intrp_all_bins,sim_intrp_all_bins,base_PPL,unintrp_PPL,intrp_PPL_all_bins,local_PPL_all_bins
-128,"He immediately began screaming at her, something he had never done.","[['He yelled at her, something he had never done.']]",[[0.489838]],50.98023986816406,20.72662353515625,[19.900846481323242],[31.164525985717773]
-180,Thinking about Mr.,[['Looking at Mr.']],[[0.67222655]],112.84121704101562,237.05116271972656,[81.8931655883789],[266.97943115234375]
-203,"“Not meaning to be nosey, but I am curious, what do you do for a living, Ms. Jordan?”","[['Not meaning to be nosey, but I am curious, what do you do for a living, Ms. Jordan?']]",[[0.88965416]],62.8452262878418,49.52537155151367,[40.704925537109375],[47.85444641113281]
-391,* * * * *,[['Is it possible that this is the case?']],[[0.05897066]],40.09796142578125,12.053848266601562,[15.991984367370605],[36.93434143066406]
-366,Tess has a right to be here.,[['There is a right to be here for Tess.']],[[0.88803142]],50.01294708251953,30.35492706298828,[27.150867462158203],[45.10817337036133]
