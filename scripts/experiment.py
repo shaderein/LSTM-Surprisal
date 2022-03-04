@@ -19,7 +19,10 @@ warnings.filterwarnings('ignore')
 # Hyperparams for now
 
 TARGET_NUM = 5  # number of targets to select
-TARGET_IDX_LOW = 6  # start selecting target from the n-th sentence
+
+# Temporarily disable this since only a few sentences are selected
+#   at the begining of the text
+# TARGET_IDX_LOW = 6  # start selecting target from the n-th sentence
 
 SIM_RANGE = range(6)  # similarity range
 PARAPHRASE = False   # Use paraphrase sentences for interruption
@@ -31,256 +34,264 @@ TARGET_DISTANCE = 4  # target distance after the interruption. (aka offset)
 
 RUN_NUM = 47    # total number of runs
 
-# Modified above for different experiment conditions
-assert(RUN_NUM+INTRP_SENT_NUM-1 <= 50)
-if PARAPHRASE:
-    assert(SIM_RANGE==range(1))
+conditions = [(1, 0, 50),
+              (2, 0, 49),
+              (4, 0, 47),
+              (4, 1, 47),
+              (4, 2, 47)]
 
-# model size of interested. Should be in [100,400,1600]
-models_size = [1600]
+for INTRP_SENT_NUM, TARGET_DISTANCE, RUN_NUM in conditions:
 
-# saving path
-result_dir = './results'
+    print(f"{INTRP_SENT_NUM}-sent Target{TARGET_DISTANCE}")
 
-# load models
-models = load_models(models_size)
+    # Modified above for different experiment conditions
+    assert(RUN_NUM+INTRP_SENT_NUM-1 <= 50)
+    if PARAPHRASE:
+        assert(SIM_RANGE==range(1))
 
-# load text path and vocab
-story_path, article_path, \
-story_pool_path, article_pool_path = load_text_path(PARAPHRASE)
+    # model size of interested. Should be in [100,400,1600]
+    models_size = [1600]
 
-vocab_file = "./data/vocab.txt"
-vocab = Dictionary(vocab_file)
+    # saving path
+    result_dir = './results'
+
+    # load models
+    models = load_models(models_size)
+
+    # load text path and vocab
+    story_path, article_path, \
+    story_pool_path, article_pool_path = load_text_path(PARAPHRASE)
+
+    vocab_file = "./data/vocab.txt"
+    vocab = Dictionary(vocab_file)
 
 
-def prepare_input(target_type, seed_num, intrp_sent_num):
-    if target_type == "story":
-        sents, _ = preprocess(story_path)
-        pool = pd.read_excel(story_pool_path)
-    elif target_type == "article":
-        sents, _ = preprocess(article_path)
-        pool = pd.read_excel(article_pool_path)
+    def prepare_input(target_type, seed_num, intrp_sent_num):
+        if target_type == "story":
+            sents, _ = preprocess(story_path)
+            pool = pd.read_excel(story_pool_path)
+        elif target_type == "article":
+            sents, _ = preprocess(article_path)
+            pool = pd.read_excel(article_pool_path)
 
-    # Randomly select interruption point from the raw text.
-    # In the experiment, the input text stream will be interrupted before
-    # the model reads the intrp_inds-th sentence.
-    # Therefore, if TARGET_DISTANCE=0, intrp_inds are exactly the target
-    # sentence indices.
-    np.random.seed(seed_num)
-    intrp_inds = np.random.randint(TARGET_IDX_LOW, 
-                                   len(sents)-TARGET_DISTANCE, 
-                                   TARGET_NUM)
+        # Randomly select interruption point from the raw text.
+        # In the experiment, the input text stream will be interrupted before
+        # the model reads the intrp_inds-th sentence.
+        # Therefore, if TARGET_DISTANCE=0, intrp_inds are exactly the target
+        # sentence indices.
+        np.random.seed(seed_num)
+        intrp_inds = np.random.randint(1, len(sents)-2, TARGET_NUM)
 
-    # interruption data as a dictionary
-        # {(intrp_idx, sim_level) : ([intrp_sent(s)], [score(s)])}
-        # where sim_level ranges from 1-10
-    intrp_data = {}
+        # interruption data as a dictionary
+            # {(intrp_idx, sim_level) : ([intrp_sent(s)], [score(s)])}
+            # where sim_level ranges from 1-10
+        intrp_data = {}
 
-    for idx in intrp_inds:
-        # locate the row of the interrupted sentence, right before 
-        # which the interrupting sentence will be inserted, in the pool
-        if PARAPHRASE:
-            intrpted_sent = pool['target_sent'][idx]
-        else:
-            target_cell = pool['target_sent'][idx]
-            intrpted_sent = ast.literal_eval(target_cell)[0]
-
-        assert (sents[idx] == intrpted_sent)
-
-        # get interrupting sentences
-        for sim_level in SIM_RANGE:
+        for idx in intrp_inds:
+            # locate the row of the interrupted sentence, right before 
+            # which the interrupting sentence will be inserted, in the pool
             if PARAPHRASE:
-                sim_sents_header = 'paraphrased'
-                sim_scores_header = 'sim_scores'
+                intrpted_sent = pool['target_sent'][idx]
             else:
-                sim_sents_header = \
-                    f'sents_sim_intrp_{target_type}_bin{sim_level+1}_all'
-                sim_scores_header = \
-                    f'sim_intrp_{target_type}_bin{sim_level+1}_all'
-            start_idx = seed_num - 1 # starting point of intrp sents selection
-            sim_sents = pool[sim_sents_header][idx]
-            sim_sents = ast.literal_eval(sim_sents)\
-                            [start_idx: start_idx + intrp_sent_num]
-            sim_scores = pool[sim_scores_header][idx]
-            if PARAPHRASE:
-                sim_scores = re.sub(" +", ",", sim_scores)
-                sim_scores = sim_scores.replace(",]", "]")
-            sim_scores = ast.literal_eval(sim_scores)\
-                            [start_idx: start_idx + intrp_sent_num]
+                target_cell = pool['target_sent'][idx]
+                intrpted_sent = ast.literal_eval(target_cell)[0]
 
-            intrp_data[(idx, sim_level)] = (sim_sents, sim_scores)
+            assert (sents[idx] == intrpted_sent)
 
-    return intrp_inds, intrp_data
+            # get interrupting sentences
+            for sim_level in SIM_RANGE:
+                if PARAPHRASE:
+                    sim_sents_header = 'paraphrased'
+                    sim_scores_header = 'sim_scores'
+                else:
+                    sim_sents_header = \
+                        f'sents_sim_intrp_{target_type}_bin{sim_level+1}_all'
+                    sim_scores_header = \
+                        f'sim_intrp_{target_type}_bin{sim_level+1}_all'
+                start_idx = seed_num - 1 # starting point of intrp sents selection
+                sim_sents = pool[sim_sents_header][idx]
+                sim_sents = ast.literal_eval(sim_sents)\
+                                [start_idx: start_idx + intrp_sent_num]
+                sim_scores = pool[sim_scores_header][idx]
+                if PARAPHRASE:
+                    sim_scores = re.sub(" +", ",", sim_scores)
+                    sim_scores = sim_scores.replace(",]", "]")
+                sim_scores = ast.literal_eval(sim_scores)\
+                                [start_idx: start_idx + intrp_sent_num]
+
+                intrp_data[(idx, sim_level)] = (sim_sents, sim_scores)
+
+        return intrp_inds, intrp_data
 
 
-def run(target_type, model, model_size, vocab, seed_num, intrp_sent_num=1):
+    def run(target_type, model, model_size, vocab, seed_num, intrp_sent_num=1):
 
-    if target_type == 'story':
-        sents_text, _ = preprocess(story_path)
-    elif target_type == 'article':
-        sents_text, _ = preprocess(article_path)
+        if target_type == 'story':
+            sents_text, _ = preprocess(story_path)
+        elif target_type == 'article':
+            sents_text, _ = preprocess(article_path)
 
-    _, sents = word2idx(sents_text, vocab)
-    intrp_inds, intrp_data = prepare_input(target_type, seed_num, intrp_sent_num)
-    hid_size = model.nhid
-    hid_init = model.init_hidden(bsz=1)
+        _, sents = word2idx(sents_text, vocab)
+        intrp_inds, intrp_data = prepare_input(target_type, seed_num, intrp_sent_num)
+        hid_size = model.nhid
+        hid_init = model.init_hidden(bsz=1)
 
-    # logging
-    target_sent_all = []
-    # key = target_idx, value = value in all bins
-    sents_intrp_all = defaultdict(list)
-    sim_scores_all = defaultdict(list)
-    ppl_base_all = []
-    ppl_loc_unintrp_all = []
-    ppl_loc_intrp_all = defaultdict(list) # PPL at the target sentence after 
-                                      # viewing only the interrupting 
-                                      # sentences (local context)
-    ppl_glo_unintrp_all = []
-    ppl_glo_intrp_all = defaultdict(list)
+        # logging
+        target_sent_all = []
+        # key = target_idx, value = value in all bins
+        sents_intrp_all = defaultdict(list)
+        sim_scores_all = defaultdict(list)
+        ppl_base_all = []
+        ppl_loc_unintrp_all = []
+        ppl_loc_intrp_all = defaultdict(list) # PPL at the target sentence after 
+                                        # viewing only the interrupting 
+                                        # sentences (local context)
+        ppl_glo_unintrp_all = []
+        ppl_glo_intrp_all = defaultdict(list)
 
-    for idx in range(len(sents)):
-        sent = sents[idx]
+        for idx in range(len(sents)):
+            sent = sents[idx]
 
-        if idx == 0:
-            out, hid = model(sent, hid_init)
-            continue
+            if idx == 0:
+                out, hid = model(sent, hid_init)
+                continue
 
-        # hid contains the cummulative context of the intact text
-        _, _, hid = sent_perplexity(sent, model, vocab, hid)
+            # hid contains the cummulative context of the intact text
+            _, _, hid = sent_perplexity(sent, model, vocab, hid)
 
-        if idx + 1 not in intrp_inds:
-            continue
+            if idx + 1 not in intrp_inds:
+                continue
 
-        # ---
-        # Reach the interruption point
-        # ---
-        hid_glo_intrp_all = []  # hidden states after viewing the intrp sents
-                                # and the global context
+            # ---
+            # Reach the interruption point
+            # ---
+            hid_glo_intrp_all = []  # hidden states after viewing the intrp sents
+                                    # and the global context
 
-        hid_loc_intrp_all = []  # hidden states after viewing only the intrp
-                            #   sents without any preceding global context
+            hid_loc_intrp_all = []  # hidden states after viewing only the intrp
+                                #   sents without any preceding global context
 
-        hid_loc_unintrp = hid_init
+            hid_loc_unintrp = hid_init
 
-        hid_glo_unintrp = hid
+            hid_glo_unintrp = hid
 
-        ## Feed in Interrupting Sentences
-        for sim_level in SIM_RANGE:
-            sents_intrp, scores_intrp = intrp_data[(idx + 1, sim_level)]
-            # logging
-            sents_intrp_all[idx+1].append(sents_intrp)
-            sim_scores_all[idx+1].append(scores_intrp)
+            ## Feed in Interrupting Sentences
+            for sim_level in SIM_RANGE:
+                sents_intrp, scores_intrp = intrp_data[(idx + 1, sim_level)]
+                # logging
+                sents_intrp_all[idx+1].append(sents_intrp)
+                sim_scores_all[idx+1].append(scores_intrp)
 
-            _, sents_intrp = word2idx(sents_intrp, vocab)  # embedding
-            sents_intrp = torch.cat(sents_intrp)
+                _, sents_intrp = word2idx(sents_intrp, vocab)  # embedding
+                sents_intrp = torch.cat(sents_intrp)
 
-            # contains S_global, S_intrp
-            _, _, hid_glo_intrp = sent_perplexity(
-                sents_intrp, model, vocab, hid_glo_unintrp)
-            hid_glo_intrp_all.append(hid_glo_intrp)
+                # contains S_global, S_intrp
+                _, _, hid_glo_intrp = sent_perplexity(
+                    sents_intrp, model, vocab, hid_glo_unintrp)
+                hid_glo_intrp_all.append(hid_glo_intrp)
 
-            # contains S_intrp only
-            _, _, hid_loc_intrp = sent_perplexity(
-                sents_intrp, model, vocab, hid_init)
-            hid_loc_intrp_all.append(hid_loc_intrp)
+                # contains S_intrp only
+                _, _, hid_loc_intrp = sent_perplexity(
+                    sents_intrp, model, vocab, hid_init)
+                hid_loc_intrp_all.append(hid_loc_intrp)
 
-        ## Feed in Local Context
-        ## (Skip if TARGET_DISTANCE=0 : targets are immediate)
-        if TARGET_DISTANCE > 0:
-            sents_loc = torch.cat(sents[idx+1 : idx+1+TARGET_DISTANCE])
+            ## Feed in Local Context
+            ## (Skip if TARGET_DISTANCE=0 : targets are immediate)
+            if TARGET_DISTANCE > 0:
+                sents_loc = torch.cat(sents[idx+1 : idx+1+TARGET_DISTANCE])
 
-            # contains S_global, S_local
-            _, _, hid_glo_unintrp = sent_perplexity(
-                sents_loc, model, vocab, hid_glo_unintrp)
+                # contains S_global, S_local
+                _, _, hid_glo_unintrp = sent_perplexity(
+                    sents_loc, model, vocab, hid_glo_unintrp)
 
-            # contains S_local only
-            _, _, hid_loc_unintrp = sent_perplexity(
-                sents_loc, model, vocab, hid_init)
+                # contains S_local only
+                _, _, hid_loc_unintrp = sent_perplexity(
+                    sents_loc, model, vocab, hid_init)
+
+                for sim_level in SIM_RANGE:
+                    # contains S_global, S_intrp, S_local
+                    _, _, hid_glo_intrp = sent_perplexity(
+                        sents_loc, model, vocab, hid_glo_intrp_all[sim_level])
+                    hid_glo_intrp_all[sim_level] = hid_glo_intrp
+
+                    # contains S_intrp, S_local
+                    _, _, hid_loc_intrp = sent_perplexity(
+                        sents_loc, model, vocab, hid_loc_intrp_all[sim_level])
+                    hid_loc_intrp_all[sim_level] = hid_loc_intrp
+
+            ## Feed in Target and log PPL
+            target_idx = idx + 1 + TARGET_DISTANCE
+            sent_target = sents[target_idx]
+            target_sent_all.append(sents_text[target_idx])
+
+            # PPL ( S_target )
+            ppl_base, _, _ = sent_perplexity(sent_target, model, vocab, hid_init)
+            ppl_base_all.append(ppl_base.item())
+
+            # PPL ( S_target | S_global, S_local )
+            ppl_glo_unintrp, _, hid_glo_unintrp = sent_perplexity(
+                sent_target, model, vocab, hid_glo_unintrp)
+            ppl_glo_unintrp_all.append(ppl_glo_unintrp.item())
+
+            # PPL ( S_target | S_local )
+            ppl_loc_unintrp, _, hid_loc_unintrp = sent_perplexity(
+                sent_target, model, vocab, hid_loc_unintrp)
+            ppl_loc_unintrp_all.append(ppl_loc_unintrp.item())
 
             for sim_level in SIM_RANGE:
-                # contains S_global, S_intrp, S_local
-                _, _, hid_glo_intrp = sent_perplexity(
-                    sents_loc, model, vocab, hid_glo_intrp_all[sim_level])
-                hid_glo_intrp_all[sim_level] = hid_glo_intrp
+                # PPL ( S_target | S_global, S_intrp, S_local )
+                ppl_glo_intrp, _, hid_glo_intrp = sent_perplexity(
+                    sent_target, model, vocab, hid_glo_intrp_all[sim_level])
+                ppl_glo_intrp_all[idx].append(ppl_glo_intrp.item())
 
-                # contains S_intrp, S_local
-                _, _, hid_loc_intrp = sent_perplexity(
-                    sents_loc, model, vocab, hid_loc_intrp_all[sim_level])
-                hid_loc_intrp_all[sim_level] = hid_loc_intrp
+                # # PPL ( S_target | S_intrp, S_local )
+                ppl_local_intrp, _, hid_loc_intrp = sent_perplexity(
+                    sent_target, model, vocab, hid_loc_intrp_all[sim_level])
+                ppl_loc_intrp_all[idx].append(ppl_local_intrp.item())
 
-        ## Feed in Target and log PPL
-        target_idx = idx + 1 + TARGET_DISTANCE
-        sent_target = sents[target_idx]
-        target_sent_all.append(sents_text[target_idx])
+        # save data
+        results = pd.concat([
+            pd.Series((intrp_inds+TARGET_DISTANCE).tolist()), 
+            pd.Series(target_sent_all), 
+            pd.Series(sents_intrp_all.values()),
+            pd.Series(sim_scores_all.values()), 
+            pd.Series(ppl_base_all), 
+            pd.Series(ppl_loc_unintrp_all),  
+            pd.Series(ppl_loc_intrp_all.values()),
+            pd.Series(ppl_glo_unintrp_all),  
+            pd.Series(ppl_glo_intrp_all.values())
+        ],
+        keys=[
+            "target_idx", 
+            "target_sent", 
+            "sents_intrp_all_bins",
+            "sim_intrp_all_bins",
+            "base_PPL",
+            "local_unintrp_PPL",
+            "local_intrp_PPL_all_bins",
+            "global_unintrp_PPL",
+            "global_intrp_PPL_all_bins"
+        ],
+        axis=1)
 
-        # PPL ( S_target )
-        ppl_base, _, _ = sent_perplexity(sent_target, model, vocab, hid_init)
-        ppl_base_all.append(ppl_base.item())
+        if PARAPHRASE: 
+            saved_folder = os.path.join(result_dir, 
+                f"{intrp_sent_num}-paraphrase_Target-{TARGET_DISTANCE+1}/")
+        else:
+            saved_folder = os.path.join(result_dir, 
+                f"{intrp_sent_num}-sentence_Target-{TARGET_DISTANCE+1}/")
+        saved_file_name = \
+            f'ppl_LSTM_{model_size}_{target_type}_seed_{seed_num}.csv'
+        create_folders_if_necessary(saved_folder)
 
-        # PPL ( S_target | S_global, S_local )
-        ppl_glo_unintrp, _, hid_glo_unintrp = sent_perplexity(
-            sent_target, model, vocab, hid_glo_unintrp)
-        ppl_glo_unintrp_all.append(ppl_glo_unintrp.item())
+        results.to_csv(os.path.join(saved_folder, saved_file_name), index=False)
 
-        # PPL ( S_target | S_local )
-        ppl_loc_unintrp, _, hid_loc_unintrp = sent_perplexity(
-            sent_target, model, vocab, hid_loc_unintrp)
-        ppl_loc_unintrp_all.append(ppl_loc_unintrp.item())
-
-        for sim_level in SIM_RANGE:
-            # PPL ( S_target | S_global, S_intrp, S_local )
-            ppl_glo_intrp, _, hid_glo_intrp = sent_perplexity(
-                sent_target, model, vocab, hid_glo_intrp_all[sim_level])
-            ppl_glo_intrp_all[idx].append(ppl_glo_intrp.item())
-
-            # # PPL ( S_target | S_intrp, S_local )
-            ppl_local_intrp, _, hid_loc_intrp = sent_perplexity(
-                sent_target, model, vocab, hid_loc_intrp_all[sim_level])
-            ppl_loc_intrp_all[idx].append(ppl_local_intrp.item())
-
-    # save data
-    results = pd.concat([
-        pd.Series((intrp_inds+TARGET_DISTANCE).tolist()), 
-        pd.Series(target_sent_all), 
-        pd.Series(sents_intrp_all.values()),
-        pd.Series(sim_scores_all.values()), 
-        pd.Series(ppl_base_all), 
-        pd.Series(ppl_loc_unintrp_all),  
-        pd.Series(ppl_loc_intrp_all.values()),
-        pd.Series(ppl_glo_unintrp_all),  
-        pd.Series(ppl_glo_intrp_all.values())
-    ],
-    keys=[
-        "target_idx", 
-        "target_sent", 
-        "sents_intrp_all_bins",
-        "sim_intrp_all_bins",
-        "base_PPL",
-        "local_unintrp_PPL",
-        "local_intrp_PPL_all_bins",
-        "global_unintrp_PPL",
-        "global_intrp_PPL_all_bins"
-    ],
-    axis=1)
-
-    if PARAPHRASE: 
-        saved_folder = os.path.join(result_dir, 
-            f"{intrp_sent_num}-paraphrase_Target-{TARGET_DISTANCE+1}/")
-    else:
-        saved_folder = os.path.join(result_dir, 
-            f"{intrp_sent_num}-sentence_Target-{TARGET_DISTANCE+1}/")
-    saved_file_name = \
-        f'ppl_LSTM_{model_size}_{target_type}_seed_{seed_num}.csv'
-    create_folders_if_necessary(saved_folder)
-
-    results.to_csv(os.path.join(saved_folder, saved_file_name), index=False)
-
-# Run experiments
-for model in models:
-    model_size = model.nhid
-    print(f"Model {model_size}")
-    for i in tqdm(range(RUN_NUM)):
-        run("story", model, model_size, vocab, seed_num=i+1, 
-            intrp_sent_num=INTRP_SENT_NUM)
-        run("article", model, model_size, vocab, seed_num=i+1, 
-            intrp_sent_num=INTRP_SENT_NUM)
+    # Run experiments
+    for model in models:
+        model_size = model.nhid
+        print(f"Model {model_size}")
+        for i in tqdm(range(RUN_NUM)):
+            run("story", model, model_size, vocab, seed_num=i+1, 
+                intrp_sent_num=INTRP_SENT_NUM)
+            run("article", model, model_size, vocab, seed_num=i+1, 
+                intrp_sent_num=INTRP_SENT_NUM)
