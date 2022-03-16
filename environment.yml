@@ -13,6 +13,7 @@ dependencies:
   - tensorboard
   - nltk
   - openpyxl
+  - seaborn
   - huggingface::transformers
   - pip:
     - tensorboardX>=1.6

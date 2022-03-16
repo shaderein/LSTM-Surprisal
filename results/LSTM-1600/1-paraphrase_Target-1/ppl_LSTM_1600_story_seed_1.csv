@@ -1,0 +1,6 @@
+target_idx,target_sent,sents_intrp_all_bins,sim_intrp_all_bins,base_PPL,local_unintrp_PPL,local_intrp_PPL_all_bins,global_unintrp_PPL,global_intrp_PPL_all_bins
+38,"What do you want, may I ask?”",[['Can I ask you what you want?']],[[0.76904857]],378.8408508300781,378.8408508300781,[128.23782348632812],107.96674346923828,[68.56588745117188]
+73,"Going to the phone, she looked at the €20, and shuttered as she thought of how timid his wife must be.",[['She looked at the 20 and closed her eyes as she thought of how timid her wife must be.']],[[0.62022984]],108.1857681274414,108.1857681274414,[78.08084106445312],80.65509796142578,[74.300048828125]
+236,"“Well, here is something for the baby.",[['Here is something for the baby.']],[[0.90684605]],178.92323303222656,178.92323303222656,[91.49287414550781],60.9375114440918,[56.295406341552734]
+256,"Seeing this as her possible exit, Tess took it.","[['Seeing this as a chance for her to leave, she took it.']]",[[0.64005631]],126.21405029296875,126.21405029296875,[60.83845138549805],77.58089447021484,[63.32131576538086]
+397,“The why about what?” David asked curiously.,[['David asked why about what.']],[[0.80382919]],4805.2880859375,4805.2880859375,[4546.55810546875],2287.9033203125,[2307.17431640625]
