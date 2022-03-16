@@ -24,8 +24,8 @@ TARGET_NUM = 5  # number of targets to select
 #   at the begining of the text
 # TARGET_IDX_LOW = 6  # start selecting target from the n-th sentence
 
-SIM_RANGE = range(6)  # similarity range
-PARAPHRASE = False   # Use paraphrase sentences for interruption
+SIM_RANGE = range(1)  # similarity range
+PARAPHRASE = True   # Use paraphrase sentences for interruption
 
 INTRP_SENT_NUM = 4  # number of interrupting sentences (unrelated to each other)
 TARGET_DISTANCE = 4  # target distance after the interruption. (aka offset) 
@@ -35,11 +35,12 @@ TARGET_DISTANCE = 4  # target distance after the interruption. (aka offset)
 RUN_NUM = 47    # total number of runs
 
 conditions = [
-              (1, 0, 48),
-              (2, 0, 23),
-              (4, 0, 11),
-              (4, 1, 11),
-              (4, 2, 11)
+              (1, 0, 10),
+            #   (1, 0, 48),
+            #   (2, 0, 23),
+            #   (4, 0, 11),
+            #   (4, 1, 11),
+            #   (4, 2, 11)
             ]
 
 for INTRP_SENT_NUM, TARGET_DISTANCE, RUN_NUM in conditions:
