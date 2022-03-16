@@ -1,6 +1,0 @@
-target_idx,target_sent,sents_intrp_all_bins,sim_intrp_all_bins,base_PPL,local_unintrp_PPL,local_intrp_PPL_all_bins,global_unintrp_PPL,global_intrp_PPL_all_bins
-368,"As Tess returned home that evening, she was tired and worried.","[['As she returned home, she was tired and worried.']]",[[0.80004203]],63.16359329223633,63.16359329223633,[35.80137252807617],31.182758331298828,[28.50436782836914]
-158,"“For Luigi’s sake, I hope I am.","[[""For Luigi's sake, I hope I am.""]]",[[0.99999994]],41.71739196777344,41.71739196777344,[30.062408447265625],21.682125091552734,[20.523420333862305]
-255,"Ko introduced the three to her, pointing out who was married to whom.",[['The three were introduced to her by Ko.']],[[0.57003593]],186.03485107421875,186.03485107421875,[115.79435729980469],111.9867935180664,[98.96229553222656]
-137,* * * * *,[['*']],[[1.0]],40.09796142578125,40.09796142578125,[13.405994415283203],18.993165969848633,[9.662089347839355]
-262,"“So, we see one another again.",[['We see one another.']],[[0.6563009]],115.33246612548828,115.33246612548828,[97.9688949584961],52.194454193115234,[43.90203857421875]
