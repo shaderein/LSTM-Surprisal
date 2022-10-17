@@ -7,7 +7,7 @@ import os
 import pickle
 
 from utils.data import preprocess, word2idx, Dictionary
-from utils.analysis import sent_perplexity
+from utils.analysis import sent_measurements
 
 # Load model
 
@@ -45,11 +45,11 @@ for idx in range(len(sents)):
         continue
 
     # Base PPL
-    ppl_base, out_base, hid_base = sent_perplexity(sent, model, vocab,
+    ppl_base, out_base, hid_base = sent_measurements(sent, model, vocab,
                                                     hid_init)
 
     # Uninterrupted PPL (with context)
-    ppl_unintrp, out_unintrp, hid_unintrp = sent_perplexity(
+    ppl_unintrp, out_unintrp, hid_unintrp = sent_measurements(
         sent, model, vocab, hid_unintrp)
 
     target_sent_all.append(sents_text[idx])

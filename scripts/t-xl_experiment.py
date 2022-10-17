@@ -51,8 +51,8 @@ seed_num = 1
 intrp_pool_article = pd.read_excel("./data/pools/diverseSim_interruptions_APAMarriageArticle_pool_brown_allCatges_seed_"+str(seed_num)+".xlsx")
 
 # Article
-nums_run_seed_start = 1
-nums_run_seed_end = 5
+nums_run_seed_start = 8
+nums_run_seed_end = 8
 
 nums_trg_sent = 5
 
@@ -83,7 +83,7 @@ for counter_run in range(nums_run_seed_start, nums_run_seed_end+1):
     
     inds_target_sents_ = np.random.randint(1, len(article_text), nums_trg_sent)
     
-    for counter_trg_sent in range(nums_trg_sent):
+    for counter_trg_sent in [4]:
 
         print('* counter_trg_sent: '+str(counter_trg_sent))
         
@@ -206,7 +206,7 @@ for counter_run in range(nums_run_seed_start, nums_run_seed_end+1):
         # saving result in xlsx format
 
         intrp_ppl_results_all_trgSent_ = pd.DataFrame([intrp_ppl_results_all_trgSent], columns=columns_)
-        intrp_ppl_results_all_trgSent_.to_excel("PPL_tXL_results_1sent_6bins_APA_marriage_FixLenWin_1024_seed_"+str(counter_run)+"_trgSent_"+str(counter_trg_sent)+".xlsx") 
+        intrp_ppl_results_all_trgSent_.to_excel(f"PPL_tXL_results_{num_intrp_sents}sent_6bins_APA_marriage_FixLenWin_1024_seed_"+str(counter_run)+"_trgSent_"+str(counter_trg_sent)+".xlsx") 
 
 
     ###*** Saving the results for each run ***###
@@ -232,7 +232,7 @@ for counter_run in range(nums_run_seed_start, nums_run_seed_end+1):
     # saving result in xlsx format
 
     intrp_ppl_results_all = pd.DataFrame(intrp_ppl_results_all, columns=columns_)
-    intrp_ppl_results_all.to_excel("PPL_tXL_results_4sents_6bins_APA_marriage_FixLenWin_1024_seed_"+str(counter_run)+".xlsx") 
+    intrp_ppl_results_all.to_excel(f"PPL_tXL_results_{num_intrp_sents}sents_6bins_APA_marriage_FixLenWin_1024_seed_"+str(counter_run)+".xlsx") 
 
 
 

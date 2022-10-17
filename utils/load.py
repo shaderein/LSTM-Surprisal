@@ -30,7 +30,7 @@ def load_text_path(paraphrase=False):
 
         article_pool_path = os.path.join(
             data_dir, 'pools',
-            'diverseSim_interruptions_APAMarriageArticle_pool_brown_allCatges_seed_1.xlsx')
+            'diverseSim_interruptions_APAMarriageArticle_pool_brown_allCatges_seed_1_v2.xlsx')
 
     return story_path, article_path, \
             story_pool_path, article_pool_path

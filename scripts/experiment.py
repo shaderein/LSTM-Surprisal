@@ -9,7 +9,7 @@ import os
 from collections import defaultdict, OrderedDict
 
 from utils.data import preprocess, word2idx, Dictionary
-from utils.analysis import sent_perplexity
+from utils.analysis import sent_measurements
 from utils.load import create_folders_if_necessary, load_text_path, load_models
 
 # suppress warnings
@@ -24,25 +24,27 @@ TARGET_NUM = 5  # number of targets to select
 #   at the begining of the text
 # TARGET_IDX_LOW = 6  # start selecting target from the n-th sentence
 
-SIM_RANGE = range(1)  # similarity range
-PARAPHRASE = True   # Use paraphrase sentences for interruption
+SIM_RANGE = range(6)  # similarity range
+PARAPHRASE = False   # Use paraphrase sentences for interruption
 
-INTRP_SENT_NUM = 4  # number of interrupting sentences (unrelated to each other)
-TARGET_DISTANCE = 4  # target distance after the interruption. (aka offset) 
-                     # TARGET_DISTANCE=0 -> the target sentence is the 1st sent
-                     # right after the interruption !!!!!!!
+# INTRP_SENT_NUM = 4  # number of interrupting sentences (unrelated to each other)
+# TARGET_DISTANCE = 4  # target distance after the interruption. (aka offset) 
+#                      # TARGET_DISTANCE=0 -> the target sentence is the 1st sent
+#                      # right after the interruption !!!!!!!
 
-RUN_NUM = 47    # total number of runs
+# RUN_NUM = 40    # total number of runs
 
-conditions = [
-              (1, 0, 10),
-            #   (1, 0, 48),
-            #   (2, 0, 23),
-            #   (4, 0, 11),
-            #   (4, 1, 11),
-            #   (4, 2, 11)
+conditions = [(4, 0, 40),
+            #   (1, 0, 5),
+              (1, 0, 40),
+              (2, 0, 40),
+              (4, 1, 40),
+              (4, 2, 40),
+              (4, 3, 40),
+              (4, 4, 40),
             ]
 
+# TODO: can optimize the code by merge conditions where target_distance varies but intrp_sent_num is the same
 for INTRP_SENT_NUM, TARGET_DISTANCE, RUN_NUM in conditions:
 
     print(f"{INTRP_SENT_NUM}-sent Target{TARGET_DISTANCE}")
@@ -54,9 +56,6 @@ for INTRP_SENT_NUM, TARGET_DISTANCE, RUN_NUM in conditions:
 
     # model size of interested. Should be in [100,400,1600]
     models_size = [1600]
-
-    # saving path
-    result_dir = './results'
 
     # load models
     models = load_models(models_size)
@@ -83,7 +82,7 @@ for INTRP_SENT_NUM, TARGET_DISTANCE, RUN_NUM in conditions:
         # Therefore, if TARGET_DISTANCE=0, intrp_inds are exactly the target
         # sentence indices.
         np.random.seed(seed_num)
-        intrp_inds = np.random.randint(1, len(sents)-2, TARGET_NUM)
+        intrp_inds = np.random.randint(4, len(sents)-5, TARGET_NUM)
 
         # interruption data as a dictionary
             # {(intrp_idx, sim_level) : ([intrp_sent(s)], [score(s)])}
@@ -113,8 +112,8 @@ for INTRP_SENT_NUM, TARGET_DISTANCE, RUN_NUM in conditions:
                         f'sim_intrp_{target_type}_bin{sim_level+1}_all'
 
                 # intrp sents sampling
-                start_idx = seed_num * intrp_sent_num + 1 
-                end_idx = (seed_num+1) * intrp_sent_num + 1 
+                start_idx = seed_num
+                end_idx = seed_num + intrp_sent_num 
 
                 sim_sents = pool[sim_sents_header][idx]
                 sim_sents = ast.literal_eval(sim_sents)\
@@ -155,6 +154,11 @@ for INTRP_SENT_NUM, TARGET_DISTANCE, RUN_NUM in conditions:
                                         # sentences (local context)
         ppl_glo_unintrp_all = defaultdict(list)
         ppl_glo_intrp_all = defaultdict(list)
+        entropy_base_all = defaultdict(list)
+        entropy_loc_unintrp_all = defaultdict(list)
+        entropy_loc_intrp_all = defaultdict(list)
+        entropy_glo_unintrp_all = defaultdict(list)
+        entropy_glo_intrp_all = defaultdict(list)
 
         for idx in range(len(sents)):
             sent = sents[idx]
@@ -164,7 +168,7 @@ for INTRP_SENT_NUM, TARGET_DISTANCE, RUN_NUM in conditions:
                 continue
 
             # hid contains the cummulative context of the intact text
-            _, _, hid = sent_perplexity(sent, model, vocab, hid)
+            _, _, hid, _ = sent_measurements(sent, model, vocab, hid)
 
             if idx + 1 not in intrp_inds:
                 continue
@@ -193,12 +197,12 @@ for INTRP_SENT_NUM, TARGET_DISTANCE, RUN_NUM in conditions:
                 sents_intrp = torch.cat(sents_intrp)
 
                 # contains S_global, S_intrp
-                _, _, hid_glo_intrp = sent_perplexity(
+                _, _, hid_glo_intrp, _ = sent_measurements(
                     sents_intrp, model, vocab, hid_glo_unintrp)
                 hid_glo_intrp_all.append(hid_glo_intrp)
 
                 # contains S_intrp only
-                _, _, hid_loc_intrp = sent_perplexity(
+                _, _, hid_loc_intrp, _ = sent_measurements(
                     sents_intrp, model, vocab, hid_init)
                 hid_loc_intrp_all.append(hid_loc_intrp)
 
@@ -208,21 +212,21 @@ for INTRP_SENT_NUM, TARGET_DISTANCE, RUN_NUM in conditions:
                 sents_loc = torch.cat(sents[idx+1 : idx+1+TARGET_DISTANCE])
 
                 # contains S_global, S_local
-                _, _, hid_glo_unintrp = sent_perplexity(
+                _, _, hid_glo_unintrp, _ = sent_measurements(
                     sents_loc, model, vocab, hid_glo_unintrp)
 
                 # contains S_local only
-                _, _, hid_loc_unintrp = sent_perplexity(
+                _, _, hid_loc_unintrp, _ = sent_measurements(
                     sents_loc, model, vocab, hid_init)
 
                 for sim_level in SIM_RANGE:
                     # contains S_global, S_intrp, S_local
-                    _, _, hid_glo_intrp = sent_perplexity(
+                    _, _, hid_glo_intrp, _ = sent_measurements(
                         sents_loc, model, vocab, hid_glo_intrp_all[sim_level])
                     hid_glo_intrp_all[sim_level] = hid_glo_intrp
 
                     # contains S_intrp, S_local
-                    _, _, hid_loc_intrp = sent_perplexity(
+                    _, _, hid_loc_intrp, _ = sent_measurements(
                         sents_loc, model, vocab, hid_loc_intrp_all[sim_level])
                     hid_loc_intrp_all[sim_level] = hid_loc_intrp
 
@@ -232,29 +236,35 @@ for INTRP_SENT_NUM, TARGET_DISTANCE, RUN_NUM in conditions:
             target_sent_all[target_idx] = sents_text[target_idx]
 
             # PPL ( S_target )
-            ppl_base, _, _ = sent_perplexity(sent_target, model, vocab, hid_init)
+            ppl_base, _, _, entropy_base = sent_measurements(sent_target, model, vocab, hid_init)
             ppl_base_all[target_idx] = ppl_base.item()
+            entropy_base_all[target_idx] = entropy_base.item()
+            
 
             # PPL ( S_target | S_global, S_local )
-            ppl_glo_unintrp, _, hid_glo_unintrp = sent_perplexity(
+            ppl_glo_unintrp, _, hid_glo_unintrp, entropy_glo_unintrp = sent_measurements(
                 sent_target, model, vocab, hid_glo_unintrp)
             ppl_glo_unintrp_all[target_idx] = ppl_glo_unintrp.item()
+            entropy_glo_unintrp_all[target_idx] = entropy_glo_unintrp.item()
 
             # PPL ( S_target | S_local )
-            ppl_loc_unintrp, _, hid_loc_unintrp = sent_perplexity(
+            ppl_loc_unintrp, _, hid_loc_unintrp, entropy_loc_unintrp = sent_measurements(
                 sent_target, model, vocab, hid_loc_unintrp)
             ppl_loc_unintrp_all[target_idx] = ppl_loc_unintrp.item()
+            entropy_loc_unintrp_all[target_idx] = entropy_loc_unintrp.item()
 
             for sim_level in SIM_RANGE:
                 # PPL ( S_target | S_global, S_intrp, S_local )
-                ppl_glo_intrp, _, hid_glo_intrp = sent_perplexity(
+                ppl_glo_intrp, _, hid_glo_intrp, entropy_glo_intrp = sent_measurements(
                     sent_target, model, vocab, hid_glo_intrp_all[sim_level])
                 ppl_glo_intrp_all[idx].append(ppl_glo_intrp.item())
+                entropy_glo_intrp_all[idx].append(entropy_glo_intrp.item())
 
                 # # PPL ( S_target | S_intrp, S_local )
-                ppl_local_intrp, _, hid_loc_intrp = sent_perplexity(
+                ppl_local_intrp, _, hid_loc_intrp, entropy_local_intrp = sent_measurements(
                     sent_target, model, vocab, hid_loc_intrp_all[sim_level])
                 ppl_loc_intrp_all[idx].append(ppl_local_intrp.item())
+                entropy_loc_intrp_all[idx].append(entropy_local_intrp.item())
 
         # save data
         # Notes: all dicts are sorted since items are inserted as the original
@@ -269,7 +279,12 @@ for INTRP_SENT_NUM, TARGET_DISTANCE, RUN_NUM in conditions:
             pd.Series(ppl_loc_unintrp_all.values()),  
             pd.Series(ppl_loc_intrp_all.values()),
             pd.Series(ppl_glo_unintrp_all.values()),  
-            pd.Series(ppl_glo_intrp_all.values())
+            pd.Series(ppl_glo_intrp_all.values()),
+            pd.Series(entropy_base_all.values()), 
+            pd.Series(entropy_loc_unintrp_all.values()),  
+            pd.Series(entropy_loc_intrp_all.values()),
+            pd.Series(entropy_glo_unintrp_all.values()),  
+            pd.Series(entropy_glo_intrp_all.values())
         ],
         keys=[
             "target_idx", 
@@ -280,7 +295,12 @@ for INTRP_SENT_NUM, TARGET_DISTANCE, RUN_NUM in conditions:
             "local_unintrp_PPL",
             "local_intrp_PPL_all_bins",
             "global_unintrp_PPL",
-            "global_intrp_PPL_all_bins"
+            "global_intrp_PPL_all_bins",
+            "base_entropy",
+            "local_unintrp_entropy",
+            "local_intrp_entropy_all_bins",
+            "global_unintrp_entropy",
+            "global_intrp_entropy_all_bins"
         ],
         axis=1)
 
@@ -299,9 +319,11 @@ for INTRP_SENT_NUM, TARGET_DISTANCE, RUN_NUM in conditions:
     # Run experiments
     for model in models:
         model_size = model.nhid
+        # saving path
+        result_dir = f'./results/LSTM-{model_size}'
         print(f"Model {model_size}")
         for i in tqdm(range(RUN_NUM)):
             run("article", model, model_size, vocab, seed_num=i+1, 
                 intrp_sent_num=INTRP_SENT_NUM)
-            run("story", model, model_size, vocab, seed_num=i+1, 
-                intrp_sent_num=INTRP_SENT_NUM)
+            # run("story", model, model_size, vocab, seed_num=i+1, 
+            #     intrp_sent_num=INTRP_SENT_NUM)
