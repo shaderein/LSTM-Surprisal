@@ -9,14 +9,18 @@ from nltk import sent_tokenize, word_tokenize
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-
 def preprocess(file_path, debug_mode=False):
+    # NOTE: special case: manually corrected carver story tokenization
+    if 'Carver_Full Story_So much water so close to home.docx' in file_path:
+        with open('./data/text/tokenized_carver.txt') as file:
+            sents = file.read().split('\n')
+        return sents, None
+
     """
     Get preprocessed sentences of the full text. (Lowercase)
     return full_text: array of sentences
             is_highlight: array of binary indicators (True/False)
     """
-
     document = docx.Document(file_path)
 
     # find highlights position
@@ -65,6 +69,14 @@ def word2idx(sents, vocab):
 
     # all_ids: a list of tensors with shape: (sent_len, batch_size=1)
     return processed_text, all_ids
+
+#TODO: mirror word2idx
+def idx2word(sents, vocab):
+    """
+    tokenize sentences into list of word idx
+    """
+    # all_ids: a list of tensors with shape: (sent_len, batch_size=1)
+    return None
 
 class Dictionary(object):
     def __init__(self, path=None):

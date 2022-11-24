@@ -11,7 +11,7 @@ def create_folders_if_necessary(path):
 def load_text_path(paraphrase=False):
     data_dir = './data'
     story_path = os.path.join(data_dir, "text",
-                          'On a Rainy Day - by Pat Garcia.docx')
+                          'Carver_Full Story_So much water so close to home.docx')
     article_path = os.path.join(
         data_dir, "text", 'Can this marriage be saved -  APA Sicence Watch.docx')
 
@@ -26,7 +26,7 @@ def load_text_path(paraphrase=False):
     else:
         story_pool_path = os.path.join(
             data_dir, "pools",
-            'diverseSim_interruptions_RainyDayStory_pool_brown_allCatges_seed_1.xlsx')
+            'Semantically-Related Interruptions_Carver.xlsx')
 
         article_pool_path = os.path.join(
             data_dir, 'pools',

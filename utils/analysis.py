@@ -32,3 +32,21 @@ def sent_measurements(sent, model, vocab: Dictionary, hidden_init):
     entropy = Categorical(probs=normalized_pred).entropy().mean()
 
     return ppl, out, hidden, entropy
+
+def generate_text(model, vocab, hidden_init, length):
+    vocab_size = len(vocab.idx2word)
+    generated_text = []
+
+    # TODO: modualize
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    sent = torch.LongTensor([[vocab.word2idx['<eos>']]]).to(device)
+    hidden = hidden_init
+    for i in range(length):
+        out, hidden = model(sent, hidden)
+        out = out.squeeze(dim=1)
+        pred = out[0]
+        pred[28437] = -1 # disable unk?
+        pred_id = pred.argmax().item()
+        generated_text.append(vocab.idx2word[pred_id])
+        sent = torch.LongTensor([[pred_id]]).to(device)
+    return ' '.join(generated_text)
