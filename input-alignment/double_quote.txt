@@ -1,0 +1,86 @@
+Tokenized
+ `` I'll have to give it some thought '', he said .
+Ref
+ "''I'll have to give it some thought'', he said."
+
+Tokenized
+ `` We're not drunkards '', she said .
+Ref
+ "''We're not drunkards'', she said."
+
+Tokenized
+ `` Mrs. Roberts had called, and couldn't wake you .
+Ref
+ "''Mrs. Roberts had called, and couldn't wake you."
+
+Tokenized
+ `` No, I'm not hungry '', he said, pushing back the bacon and eggs .
+Ref
+ "''No, I'm not hungry'', he said, pushing back the bacon and eggs."
+
+Tokenized
+ He said in a low voice, `` I've got a date with a lady, Mister .
+Ref
+ "He said in a low voice, ''I've got a date with a lady, Mister."
+
+Tokenized
+ He said, `` I've got some supper ready '' .
+Ref
+ "He said, ''I've got some supper ready''."
+
+Tokenized
+ He said : `` You'll feel a lot better after you have a bath .
+Ref
+ "He said: ''You'll feel a lot better after you have a bath."
+
+Tokenized
+ `` Conservatism '' and `` traditionalism '' seem implied by what has just been said .
+Ref
+ "''Conservatism'' and ''traditionalism'' seem implied by what has just been said."
+
+Tokenized
+ Expected of a commander Commenting on these and other matters, Field Marshal Slim makes many frank and provocative remarks : `` When in doubt as to two courses of action, a general should choose the bolder '' .
+Ref
+ "Expected of a commander Commenting on these and other matters, Field Marshal Slim makes many frank and provocative remarks: ''When in doubt as to two courses of action, a general should choose the bolder''. "
+
+Tokenized
+ Arlene was so ashamed that she hung her head when she said, `` Yes, sir '' .
+Ref
+ "Arlene was so ashamed that she hung her head when she said, ''Yes, sir''."
+
+
+
+
+
+
+Tokenized
+ She was silent for a while, then said, `` Why are you so unhappy '' ?
+Ref
+ "She was silent for a while, then said, ''Why are you so unhappy''??"
+
+
+Tokenized
+ The words of Cardinal Newman come forcibly to mind : `` Oh how we hate one another for the love of God '' !
+Ref
+ "The words of Cardinal Newman come forcibly to mind: ''Oh how we hate one another for the love of God ''!!"
+
+Tokenized
+ `` What about your father and mother, don't you think of them when you're in a place like this '' ?
+Ref
+ "''What about your father and mother, don't you think of them when you're in a place like this''??"
+
+Tokenized
+ Why, he's so darling and '' `` I mean '', I went on ruthlessly, `` when he's not talking about you or himself or the wonders of love, is he interesting ?
+Ref
+ "Why, he's so darling and'' ''I mean'', I went on ruthlessly, ''when he's not talking about you or himself or the wonders of love, is he interesting??"
+
+Tokenized
+ Finally he asked, `` Do you object to petting '' ?
+Ref
+ "Finally he asked, ''Do you object to petting''??"
+
+Tokenized
+ And John's reply was always the same : `` Anything that affects souls is the concern of the Church !
+Ref
+ "And John's reply was always the same: ''Anything that affects souls is the concern of the Church!!"
+

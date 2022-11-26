@@ -6,12 +6,10 @@ from tqdm import tqdm
 import ast
 import os
 
-from nltk import sent_tokenize
-
 from collections import defaultdict, OrderedDict
 
 from utils.data import preprocess, word2idx, Dictionary
-from utils.analysis import sent_measurements, generate_text
+from utils.analysis import sent_measurements
 from utils.load import create_folders_if_necessary, load_text_path, load_models
 
 # suppress warnings
@@ -20,17 +18,15 @@ warnings.filterwarnings('ignore')
 
 # Hyperparams for now
 
-# TARGET_NUM = 5  # number of targets to select
+TARGET_NUM = 5  # number of targets to select
 
 # Temporarily disable this since only a few sentences are selected
 #   at the begining of the text
 # TARGET_IDX_LOW = 6  # start selecting target from the n-th sentence
 
 # TODO
-SIM_RANGE = range(10)  # similarity range
+SIM_RANGE = range(6)  # similarity range
 PARAPHRASE = False   # Use paraphrase sentences for interruption
-
-GENERATE_LENGTH = 10 # length of text to generated after intrp
 
 """"
 INTRP_SENT_NUM:     # number of interrupting sentences (unrelated to each other)
@@ -42,21 +38,26 @@ RUN_NUM =           # total number of runs
 """
 
 # TODO
-# Batch runs: INTRP_SENT_NUM, TARGET_DISTANCE
-conditions = [#(1, 0),
-              (1, 1),
-              (1, 2),
-              (1, 3),
-              (1, 4),
-              (1, 5),
-              (1, 6),
-              (1, 7)
+# Batch runs: INTRP_SENT_NUM, TARGET_DISTANCE, RUN_NUM
+conditions = [(4, 0, 40),
+            #   (1, 0, 5),
+              (1, 0, 40),
+              (2, 0, 40),
+              (4, 1, 40),
+              (4, 2, 40),
+              (4, 3, 40),
+              (4, 4, 40),
             ]
 
 # TODO: can optimize the code by merge conditions where target_distance varies but intrp_sent_num is the same
-for INTRP_SENT_NUM, TARGET_DISTANCE in conditions:
+for INTRP_SENT_NUM, TARGET_DISTANCE, RUN_NUM in conditions:
 
     print(f"{INTRP_SENT_NUM}-sent Target{TARGET_DISTANCE}")
+
+    # Modified above for different experiment conditions
+    assert(RUN_NUM+INTRP_SENT_NUM-1 <= 50)
+    if PARAPHRASE:
+        assert(SIM_RANGE==range(1))
 
     # model size of interested. Should be in [100,400,1600]
     models_size = [1600]
@@ -71,7 +72,8 @@ for INTRP_SENT_NUM, TARGET_DISTANCE in conditions:
     vocab_file = "./data/vocab.txt"
     vocab = Dictionary(vocab_file)
 
-    def prepare_input(target_type, intrp_sent_num):
+
+    def prepare_input(target_type, seed_num, intrp_sent_num):
         if target_type == "story":
             sents, _ = preprocess(story_path)
             pool = pd.read_excel(story_pool_path)
@@ -79,84 +81,62 @@ for INTRP_SENT_NUM, TARGET_DISTANCE in conditions:
             sents, _ = preprocess(article_path)
             pool = pd.read_excel(article_pool_path)
 
-        updated_pool = pool
-        check_first_intrp = pd.read_excel('./data/text/1st Interruption Sentences_low and high sim.xlsx')
-
+        # TODO
+        # Randomly select interruption point from the raw text.
         # In the experiment, the input text stream will be interrupted before
         # the model reads the intrp_inds-th sentence.
         # Therefore, if TARGET_DISTANCE=0, intrp_inds are exactly the target
         # sentence indices.
-        intrp_inds = np.asarray([17, 37, 54, 66, 76, 88, 106, 118, 136, 148, 158, 171, 188, 200, 224, 232, 246]) + 1
+        np.random.seed(seed_num)
+        intrp_inds = np.random.randint(4, len(sents)-5, TARGET_NUM)
 
         # interruption data as a dictionary
             # {(intrp_idx, sim_level) : ([intrp_sent(s)], [score(s)])}
-            # where sim_level ranges from 0-9 # TODO
-            # 0-4: low; 5-9: high
+            # where sim_level ranges from 1-10 # TODO
         intrp_data = {}
 
-        for i in range(len(intrp_inds)):
+        for idx in intrp_inds:
             # locate the row of the interrupted sentence, right before # TODO
             # which the interrupting sentence will be inserted, in the pool
+            if PARAPHRASE:
+                intrpted_sent = pool['target_sent'][idx]
+            else:
+                target_cell = pool['target_sent'][idx]
+                intrpted_sent = ast.literal_eval(target_cell)[0]
+
+            assert (sents[idx] == intrpted_sent)
 
             # get interrupting sentences
-            for level in range(5):
+            for sim_level in SIM_RANGE:
+                if PARAPHRASE:
+                    sim_sents_header = 'paraphrased'
+                    sim_scores_header = 'sim_scores'
+                else:
+                    sim_sents_header = \
+                        f'sents_sim_intrp_{target_type}_bin{sim_level+1}_all'
+                    sim_scores_header = \
+                        f'sim_intrp_{target_type}_bin{sim_level+1}_all'
 
-                row = i * 5 + level
+                # intrp sents sampling
+                start_idx = seed_num
+                end_idx = seed_num + intrp_sent_num 
 
-                preceding_sent = pool['Primary Story (preceding sentences)'][i]
+                sim_sents = pool[sim_sents_header][idx]
+                sim_sents = ast.literal_eval(sim_sents)\
+                                [start_idx: end_idx]
+                sim_scores = pool[sim_scores_header][idx]
+                if PARAPHRASE:
+                    sim_scores = re.sub(" +", ",", sim_scores)
+                    sim_scores = sim_scores.replace(",]", "]")
+                sim_scores = ast.literal_eval(sim_scores)\
+                                [start_idx: end_idx]
 
-                sim_sents_low_header = \
-                    f'Min Similarity ~ - 0.15'
-                sim_scores_low_header = \
-                    f'low sim scores'
+                intrp_data[(idx, sim_level)] = (sim_sents, sim_scores)
 
-                sim_sents_high_header = \
-                    f'Max Similarity ~ 0.4 <'
-                sim_scores_high_header = \
-                    f'high sim scores'
-
-                sim_sents_low = pool[sim_sents_low_header][row]
-                sim_scores_low = pool[sim_scores_low_header][row]
-
-                sim_sents_high = pool[sim_sents_high_header][row]
-                sim_scores_high = pool[sim_scores_high_header][row]
-
-                sim_sents_low_tok = sent_tokenize(sim_sents_low)
-                sim_sents_high_tok = sent_tokenize(sim_sents_high)
-                updated_pool[sim_sents_low_header][row] = sim_sents_low_tok
-                updated_pool[sim_sents_high_header][row] = sim_sents_high_tok
-
-                sim_sents_low_tok = sim_sents_low_tok[0].replace(' ,',',').replace(' ;',';')
-                sim_sents_high_tok = sim_sents_high_tok[0].replace(' ,',',')
-
-                ref_sent_low = check_first_intrp[f'Low Sim - sample {level+1}'][i]
-                ref_sent_high = check_first_intrp[f'High Sim - sample {level+1}'][i]
-                
-                if sim_sents_low_tok != ref_sent_low:
-                    if ref_sent_low[-2:] == ".'" and sim_sents_low_tok[-2:] == ' .' and\
-                        sim_sents_low_tok[:-2] == ref_sent_low[:-2]:
-                        pass
-                    else:
-                        print("Tokenized\n",sim_sents_low_tok)
-                        print("Ref\n",ref_sent_low)
-                        print()
-                if sim_sents_high_tok != ref_sent_high:
-                    if ref_sent_high[-2:] == ".'" and sim_sents_high_tok[-2:] == ' .' and\
-                        sim_sents_high_tok[:-2] == ref_sent_high[:-2]:
-                        pass
-                    else:
-                        print("Tokenized\n",sim_sents_high_tok)
-                        print("Ref\n",ref_sent_high)
-                        print()
-
-                intrp_data[(intrp_inds[i], level)] = (sim_sents_low, sim_scores_low)
-                intrp_data[(intrp_inds[i], level+5)] = (sim_sents_high, sim_scores_high)
-
-        updated_pool.to_excel('./tokenized_pool.xlsx')
         return intrp_inds, intrp_data
 
 
-    def run(target_type, model, model_size, vocab, intrp_sent_num=1):
+    def run(target_type, model, model_size, vocab, seed_num, intrp_sent_num=1):
 
         if target_type == 'story':
             sents_text, _ = preprocess(story_path)
@@ -164,21 +144,15 @@ for INTRP_SENT_NUM, TARGET_DISTANCE in conditions:
             sents_text, _ = preprocess(article_path)
 
         _, sents = word2idx(sents_text, vocab)
-        intrp_inds, intrp_data = prepare_input(target_type, intrp_sent_num)
+        intrp_inds, intrp_data = prepare_input(target_type, seed_num, intrp_sent_num)
         hid_size = model.nhid
         hid_init = model.init_hidden(bsz=1)
 
         # logging
         target_sent_all = defaultdict(list)
-        # key = intrp_idx, value = [value in all bins]
+        # key = target_idx, value = value in all bins
         sents_intrp_all = defaultdict(list)
-        preceding_all = defaultdict(list) # Note: new
         sim_scores_all = defaultdict(list)
-
-        # collect generated text after intrp
-        generated_unintrp_all = defaultdict(list)
-        generated_intrp_all = defaultdict(list)
-
         ppl_base_all = defaultdict(list)
         ppl_loc_unintrp_all = defaultdict(list)
         ppl_loc_intrp_all = defaultdict(list) # PPL at the target sentence after 
@@ -192,13 +166,7 @@ for INTRP_SENT_NUM, TARGET_DISTANCE in conditions:
         entropy_glo_unintrp_all = defaultdict(list)
         entropy_glo_intrp_all = defaultdict(list)
 
-        # SIGNAL
-        ppl_loc_intrp_SIGNAL_all = defaultdict(list)
-        ppl_glo_intrp_SIGNAL_all = defaultdict(list)
-        entropy_loc_intrp_SIGNAL_all = defaultdict(list)
-        entropy_glo_intrp_SIGNAL_all = defaultdict(list)
-
-        for idx in tqdm(range(len(sents))):
+        for idx in range(len(sents)):
             sent = sents[idx]
 
             if idx == 0:
@@ -211,52 +179,26 @@ for INTRP_SENT_NUM, TARGET_DISTANCE in conditions:
             if idx + 1 not in intrp_inds:
                 continue
 
-            # NOTE: Reach the interruption point (idx=last sentence before intrp)
-            preceding_all[idx] = sents_text[idx]
+            # ---
+            # Reach the interruption point
+            # ---
             hid_glo_intrp_all = []  # hidden states after viewing the intrp sents
                                     # and the global context
 
             hid_loc_intrp_all = []  # hidden states after viewing only the intrp
                                 #   sents without any preceding global context
 
-            """ With signal """
-            hid_glo_intrp_SIGNAL_all = []  # hidden states after viewing the intrp sents
-                                    # and the global context
-
-            hid_loc_intrp_SIGNAL_all = []  # hidden states after viewing only the intrp
-                                #   sents without any preceding global context
-
             hid_loc_unintrp = hid_init
 
             hid_glo_unintrp = hid
 
-            generated_unintrp_all[idx+1].append(generate_text(model,vocab,hid_glo_unintrp,GENERATE_LENGTH))
-
-
-            # NOTE: Feed in Interrupting Sentences
+            ## Feed in Interrupting Sentences
             for sim_level in SIM_RANGE:
                 sents_intrp, scores_intrp = intrp_data[(idx + 1, sim_level)]
-
-                # logging sents info
+                # logging
                 sents_intrp_all[idx+1].append(sents_intrp)
                 sim_scores_all[idx+1].append(scores_intrp)
 
-                """ With signal """
-                sents_intrp_SIGNAL = ["<beginning of unrelated> " + sents_intrp + " <end of unrelated>"]
-                _, sents_intrp_SIGNAL = word2idx(sents_intrp_SIGNAL, vocab)  # embedding
-                sents_intrp_SIGNAL = torch.cat(sents_intrp_SIGNAL)
-                
-                # contains S_global, S_intrp
-                _, _, hid_glo_intrp_SIGNAL, _ = sent_measurements(
-                    sents_intrp_SIGNAL, model, vocab, hid_glo_unintrp)
-                hid_glo_intrp_SIGNAL_all.append(hid_glo_intrp_SIGNAL)
-
-                # contains S_intrp only
-                _, _, hid_loc_intrp_SIGNAL, _ = sent_measurements(
-                    sents_intrp_SIGNAL, model, vocab, hid_init)
-                hid_loc_intrp_SIGNAL_all.append(hid_loc_intrp_SIGNAL)
-
-                """ Without signal"""
                 _, sents_intrp = word2idx(sents_intrp, vocab)  # embedding
                 sents_intrp = torch.cat(sents_intrp)
 
@@ -265,19 +207,16 @@ for INTRP_SENT_NUM, TARGET_DISTANCE in conditions:
                     sents_intrp, model, vocab, hid_glo_unintrp)
                 hid_glo_intrp_all.append(hid_glo_intrp)
 
-                # Collecting generated text after intrp
-                generated_intrp_all[idx+1].append(generate_text(model,vocab,hid_glo_intrp,GENERATE_LENGTH))
-
                 # contains S_intrp only
                 _, _, hid_loc_intrp, _ = sent_measurements(
                     sents_intrp, model, vocab, hid_init)
                 hid_loc_intrp_all.append(hid_loc_intrp)
 
-            # NOTE: Feed in Local Context
+            ## Feed in Local Context
             ## (Skip if TARGET_DISTANCE=0 : targets are immediate)
             if TARGET_DISTANCE > 0:
                 sents_loc = torch.cat(sents[idx+1 : idx+1+TARGET_DISTANCE])
-                
+
                 # contains S_global, S_local
                 _, _, hid_glo_unintrp, _ = sent_measurements(
                     sents_loc, model, vocab, hid_glo_unintrp)
@@ -287,7 +226,6 @@ for INTRP_SENT_NUM, TARGET_DISTANCE in conditions:
                     sents_loc, model, vocab, hid_init)
 
                 for sim_level in SIM_RANGE:
-                    """ Without signal"""
                     # contains S_global, S_intrp, S_local
                     _, _, hid_glo_intrp, _ = sent_measurements(
                         sents_loc, model, vocab, hid_glo_intrp_all[sim_level])
@@ -298,18 +236,7 @@ for INTRP_SENT_NUM, TARGET_DISTANCE in conditions:
                         sents_loc, model, vocab, hid_loc_intrp_all[sim_level])
                     hid_loc_intrp_all[sim_level] = hid_loc_intrp
 
-                    """ With signal"""
-                    # contains S_global, S_intrp, S_local
-                    _, _, hid_glo_intrp_SIGNAL, _ = sent_measurements(
-                        sents_loc, model, vocab, hid_glo_intrp_SIGNAL_all[sim_level])
-                    hid_glo_intrp_SIGNAL_all[sim_level] = hid_glo_intrp_SIGNAL
-
-                    # contains S_intrp, S_local
-                    _, _, hid_loc_intrp_SIGNAL, _ = sent_measurements(
-                        sents_loc, model, vocab, hid_loc_intrp_SIGNAL_all[sim_level])
-                    hid_loc_intrp_SIGNAL_all[sim_level] = hid_loc_intrp_SIGNAL
-
-            # NOTE: Feed in Target and log PPL
+            ## Feed in Target and log PPL
             target_idx = idx + 1 + TARGET_DISTANCE
             sent_target = sents[target_idx]
             target_sent_all[target_idx] = sents_text[target_idx]
@@ -319,6 +246,7 @@ for INTRP_SENT_NUM, TARGET_DISTANCE in conditions:
             ppl_base_all[target_idx] = ppl_base.item()
             entropy_base_all[target_idx] = entropy_base.item()
             
+
             # PPL ( S_target | S_global, S_local )
             ppl_glo_unintrp, _, hid_glo_unintrp, entropy_glo_unintrp = sent_measurements(
                 sent_target, model, vocab, hid_glo_unintrp)
@@ -344,33 +272,15 @@ for INTRP_SENT_NUM, TARGET_DISTANCE in conditions:
                 ppl_loc_intrp_all[idx].append(ppl_local_intrp.item())
                 entropy_loc_intrp_all[idx].append(entropy_local_intrp.item())
 
-                # Note: SIGNAL
-                # PPL ( S_target | S_global, S_intrp_SIGNAL, S_local )
-                ppl_glo_intrp_SIGNAL, _, hid_glo_intrp_SIGNAL, entropy_glo_intrp_SIGNAL = sent_measurements(
-                    sent_target, model, vocab, hid_glo_intrp_SIGNAL_all[sim_level])
-                ppl_glo_intrp_SIGNAL_all[idx].append(ppl_glo_intrp_SIGNAL.item())
-                entropy_glo_intrp_SIGNAL_all[idx].append(entropy_glo_intrp_SIGNAL.item())
-
-                # # PPL ( S_target | S_intrp_SIGNAL, S_local )
-                ppl_local_intrp_SIGNAL, _, hid_loc_intrp_SIGNAL, entropy_local_intrp_SIGNAL = sent_measurements(
-                    sent_target, model, vocab, hid_loc_intrp_SIGNAL_all[sim_level])
-                ppl_loc_intrp_SIGNAL_all[idx].append(ppl_local_intrp_SIGNAL.item())
-                entropy_loc_intrp_SIGNAL_all[idx].append(entropy_local_intrp_SIGNAL.item())
-
         # save data
         # Notes: all dicts are sorted since items are inserted as the original
         #        text is traversed. Need to explicitly sort the dict if the
         #        implementation changes later
         results = pd.concat([
-            pd.Series(preceding_all.values()),
             pd.Series(target_sent_all.keys()), 
             pd.Series(target_sent_all.values()), 
             pd.Series(sents_intrp_all.values()),
             pd.Series(sim_scores_all.values()), 
-
-            pd.Series(generated_unintrp_all.values()),
-            pd.Series(generated_intrp_all.values()),
-
             pd.Series(ppl_base_all.values()), 
             pd.Series(ppl_loc_unintrp_all.values()),  
             pd.Series(ppl_loc_intrp_all.values()),
@@ -380,23 +290,13 @@ for INTRP_SENT_NUM, TARGET_DISTANCE in conditions:
             pd.Series(entropy_loc_unintrp_all.values()),  
             pd.Series(entropy_loc_intrp_all.values()),
             pd.Series(entropy_glo_unintrp_all.values()),  
-            pd.Series(entropy_glo_intrp_all.values()),
-
-            pd.Series(ppl_loc_intrp_SIGNAL_all.values()),
-            pd.Series(ppl_glo_intrp_SIGNAL_all.values()),
-            pd.Series(entropy_loc_intrp_SIGNAL_all.values()),
-            pd.Series(entropy_glo_intrp_SIGNAL_all.values())
+            pd.Series(entropy_glo_intrp_all.values())
         ],
         keys=[
-            "preceding_sent",
             "target_idx", 
             "target_sent", 
             "sents_intrp_all_bins",
             "sim_intrp_all_bins",
-
-            "generated_unintrp",
-            "generated_intrp",
-
             "base_PPL",
             "local_unintrp_PPL",
             "local_intrp_PPL_all_bins",
@@ -406,12 +306,7 @@ for INTRP_SENT_NUM, TARGET_DISTANCE in conditions:
             "local_unintrp_entropy",
             "local_intrp_entropy_all_bins",
             "global_unintrp_entropy",
-            "global_intrp_entropy_all_bins",
-
-            "local_intrp_SIGNAL_PPL_all_bins",
-            "global_intrp_SIGNAL_PPL_all_bins",
-            "local_intrp_SIGNAL_entropy_all_bins",
-            "global_intrp_SIGNAL_entropy_all_bins"
+            "global_intrp_entropy_all_bins"
         ],
         axis=1)
 
@@ -422,10 +317,10 @@ for INTRP_SENT_NUM, TARGET_DISTANCE in conditions:
             saved_folder = os.path.join(result_dir, 
                 f"{intrp_sent_num}-sentence_Target-{TARGET_DISTANCE+1}/")
         saved_file_name = \
-            f'ppl_LSTM_{model_size}_{target_type}.csv'
+            f'ppl_LSTM_{model_size}_{target_type}_seed_{seed_num}.csv'
         create_folders_if_necessary(saved_folder)
 
-        results.to_csv(os.path.join(saved_folder, saved_file_name), index=False,encoding='utf-8')
+        results.to_csv(os.path.join(saved_folder, saved_file_name), index=False)
 
     # Run experiments
     for model in models:
@@ -433,5 +328,8 @@ for INTRP_SENT_NUM, TARGET_DISTANCE in conditions:
         # saving path
         result_dir = f'./results/LSTM-{model_size}'
         print(f"Model {model_size}")
-
-        run("story", model, model_size, vocab, intrp_sent_num=INTRP_SENT_NUM)
+        for i in tqdm(range(RUN_NUM)):
+            run("article", model, model_size, vocab, seed_num=i+1, 
+                intrp_sent_num=INTRP_SENT_NUM)
+            # run("story", model, model_size, vocab, seed_num=i+1, 
+            #     intrp_sent_num=INTRP_SENT_NUM)

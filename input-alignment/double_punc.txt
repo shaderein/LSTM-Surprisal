@@ -1,0 +1,29 @@
+Tokenized
+ Why should I be spinning just because the goddamn log is spinning ?
+Ref
+ Why should I be spinning just because the goddamn log is spinning??'
+
+Tokenized
+ If you use parking attendants, can they be replaced by automatic parking gates ?
+Ref
+ If you use parking attendants, can they be replaced by automatic parking gates??'
+
+Tokenized
+ Is it larger or fancier than you really need ?
+Ref
+ Is it larger or fancier than you really need??'
+
+Tokenized
+ But what had I done, trying to keep us pure ?
+Ref
+ But what had I done, trying to keep us pure??'
+
+Tokenized
+ Suppose the cops somehow got hold of that ?
+Ref
+ Suppose the cops somehow got hold of that??'
+
+Tokenized
+ Does your company have a program for selecting and developing sales and marketing management personnel for the longer term ?
+Ref
+ Does your company have a program for selecting and developing sales and marketing management personnel for the longer term??'

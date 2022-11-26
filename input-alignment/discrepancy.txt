@@ -1,0 +1,29 @@
+Tokenized
+ Underground concrete shelter An underground reinforced concrete shelter can be built by a contractor for about $1,000 to $1,500, depending on the type of entrance .
+Ref
+ An underground reinforced concrete shelter can be built by a contractor for about $1,000 to $1,500, depending on the type of entrance.'
+
+Tokenized
+ This will have a beneficial effect by expediting public business ; ; it will also correct some injustices .
+Ref
+ This will have a beneficial effect by expediting public business;;'
+
+Tokenized
+ she got out of the coffee shop before the incident could be repeated .
+Ref
+ She got out of the coffee shop before the incident could be repeated.'
+
+Tokenized
+ Financial grants have been received from the National Science Foundation and the ( British ) Institute of Physics for the compilation work and the publication costs .
+Ref
+ Financial grants have been received from the National Science Foundation and the (British) Institute of Physics for the compilation work and the publication costs. The continuity of the project is suggested by plans for an eventual third edition. '
+
+Tokenized
+ Did you ever see a play '' ?
+Ref
+ "Did you ever see a play''?? ''You mean a game with cards''?? ''No'', said the half-man, ''a sort of eye-machine with real people doing the figures''. "
+
+Tokenized
+ Who knew about it ?
+Ref
+ Who knew about it?? She lived alone in the older part of the city, in one of those renovated houses whose brick facade some early settler had constructed.'
